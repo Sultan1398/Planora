@@ -105,17 +105,17 @@ export default function InvestmentsPage() {
   }, [closedDeals, minD, maxD])
 
   function investmentPathMeta(type: Investment['type']) {
-    // Map DB type -> user-facing Arabic label + professional color
+    /** يطابق DEAL_CATEGORIES في InvestmentDealModal: فوركس→other، عقار→partnership، مشاريع→freelance */
     switch (type) {
       case 'stocks':
         return { label: t('أسهم', 'Stocks'), badgeClassName: 'bg-blue-50 text-blue-600 border-blue-100' }
       case 'partnership':
-        return { label: t('فوركس', 'Forex'), badgeClassName: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
-      case 'freelance':
         return { label: t('عقار', 'Real estate'), badgeClassName: 'bg-orange-50 text-orange-600 border-orange-100' }
+      case 'freelance':
+        return { label: t('مشاريع', 'Projects'), badgeClassName: 'bg-red-50 text-red-600 border-red-100' }
       case 'other':
       default:
-        return { label: t('مشاريع', 'Projects'), badgeClassName: 'bg-red-50 text-red-600 border-red-100' }
+        return { label: t('فوركس', 'Forex'), badgeClassName: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
     }
   }
 

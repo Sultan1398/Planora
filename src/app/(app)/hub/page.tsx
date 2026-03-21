@@ -13,6 +13,7 @@ import { formatMoney } from '@/lib/format-money'
 import { outflowIsObligationLinkedExpense } from '@/lib/obligation-helpers'
 import { cn } from '@/lib/utils'
 import { DashboardTabPanel } from '@/components/hub/DashboardTabPanel'
+import { FinancialReminders } from '@/components/layout/FinancialReminders'
 import { StatisticsTabPanel } from '@/components/hub/StatisticsTabPanel'
 
 const hubNav = getAppNavItem('/hub')
@@ -327,6 +328,8 @@ function HubPageInner() {
               {error}
             </div>
           ) : null}
+
+          <FinancialReminders />
 
           <div className="relative mb-6 overflow-hidden rounded-2xl bg-brand p-4 text-white shadow-sm lg:p-6">
             <p className="mb-2 text-sm font-medium text-white/80">{t('النقد المتاح', 'Cash on Hand')}</p>
