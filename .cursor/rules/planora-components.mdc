@@ -1,0 +1,89 @@
+---
+description: Component patterns and data fetching conventions for Planora
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# Component & Data Fetching Patterns
+
+## Page Structure Pattern
+Every app page should follow this structure:
+
+```tsx
+'use client'
+
+import { useLanguage } from '@/contexts/LanguageContext'
+import { usePeriod } from '@/contexts/PeriodContext'
+import { PeriodNavigator } from '@/components/layout/PeriodNavigator'
+
+export default function SectionPage() {
+  const { t } = useLanguage()
+  const { periodKey, startDay } = usePeriod()
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold">{t('العنوان بالعربي', 'Title in English')}</h1>
+          <p className="text-muted text-sm mt-1">{t('وصف', 'Description')}</p>
+        </div>
+        <PeriodNavigator />
+      </div>
+      {/* content */}
+    </div>
+  )
+}
+```
+
+## Supabase Data Fetching (Client Component)
+```tsx
+import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState } from 'react'
+import { usePeriod } from '@/contexts/PeriodContext'
+import { isDateInPeriod } from '@/lib/period'
+import type { Inflow } from '@/types/database'
+
+function useInflows() {
+  const { periodKey, startDay } = usePeriod()
+  const [data, setData] = useState<Inflow[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('inflows')
+      .select('*')
+      .order('date', { ascending: false })
+      .then(({ data }) => {
+        const filtered = (data ?? []).filter(
+          (item) => isDateInPeriod(item.date, periodKey, startDay)
+        )
+        setData(filtered)
+        setLoading(false)
+      })
+  }, [periodKey, startDay])
+
+  return { data, loading }
+}
+```
+
+## Form Pattern (Add/Edit)
+- Use controlled inputs with `useState`
+- Validate before calling Supabase
+- Show inline error with `text-danger bg-red-50` div
+- Disable submit button while loading
+- After success: refresh data, close modal/form
+
+## Status Toggle (paid/pending)
+```tsx
+async function toggleStatus(id: string, current: 'paid' | 'pending') {
+  const supabase = createClient()
+  await supabase
+    .from('outflows')
+    .update({ status: current === 'paid' ? 'pending' : 'paid' })
+    .eq('id', id)
+}
+```
+
+## Currency Display
+Always use `formatCurrency(amount, locale)` from `@/lib/utils` — never format manually.

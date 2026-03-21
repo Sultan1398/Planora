@@ -1,0 +1,49 @@
+---
+description: Supabase database schema and query patterns for Planora
+globs: src/**/*.ts
+alwaysApply: false
+---
+
+# Database Schema Reference
+
+## Tables
+| Table | Key Fields |
+|-------|-----------|
+| `profiles` | `id` (= auth user id), `period_start_day` (1–28), `period_start_month` |
+| `inflows` | `user_id`, `name_ar`, `name_en`, `amount`, `type` (fixed/variable), `date` |
+| `outflows` | `user_id`, `name_ar`, `name_en`, `amount`, `status` (paid/pending), `date` |
+| `obligations` | `user_id`, `name_ar`, `name_en`, `amount`, `status`, `due_date`, `date` |
+| `savings_goals` | `user_id`, `name_ar`, `name_en`, `target_amount`, `current_amount`, `target_date` |
+| `savings_transactions` | `user_id`, `goal_id`, `type` (deposit/withdrawal), `amount`, `date` |
+| `investments` | `user_id`, `name_ar`, `name_en`, `type`, `entry_amount`, `entry_date`, `status` (open/closed), `exit_amount?`, `exit_date?` |
+
+## RLS — All tables have RLS enabled
+Every query is automatically scoped to the authenticated user via RLS policies.
+You do NOT need to add `.eq('user_id', userId)` — RLS handles it.
+But it's fine to add it for clarity.
+
+## Period Filtering
+Data is NOT stored with a period key. Filter by date range:
+```ts
+import { getPeriodDates } from '@/lib/period'
+
+const { start, end } = getPeriodDates(periodKey, startDay)
+const startStr = start.toISOString().split('T')[0]
+const endStr = end.toISOString().split('T')[0]
+
+const { data } = await supabase
+  .from('inflows')
+  .select('*')
+  .gte('date', startStr)
+  .lte('date', endStr)
+```
+
+## Investment P&L Calculation
+```ts
+const pnl = investment.exit_amount != null
+  ? investment.exit_amount - investment.entry_amount
+  : null
+```
+
+## Savings Goal Update
+`savings_goals.current_amount` is auto-updated by a DB trigger when savings_transactions are inserted/deleted. Do NOT update it manually.

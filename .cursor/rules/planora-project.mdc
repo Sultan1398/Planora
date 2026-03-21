@@ -1,0 +1,77 @@
+---
+description: Planora project overview, architecture, and core conventions
+alwaysApply: true
+---
+
+# Planora — Personal Finance Flow App
+
+## Project Summary
+Bilingual (Arabic RTL / English LTR) personal finance web app. Users track income, expenses, obligations, savings goals, and investments across **dynamic financial periods** tied to their salary cycle.
+
+## Tech Stack
+- **Framework**: Next.js 15 (App Router) + TypeScript
+- **Styling**: Tailwind CSS v4 — brand color `#1B6EF3`
+- **Backend/Auth**: Supabase (PostgreSQL + RLS + Auth)
+- **Charts**: Recharts
+- **Icons**: lucide-react
+
+## Directory Structure
+```
+src/
+  app/
+    (auth)/login/       # Login page
+    (auth)/signup/      # Signup page
+    (app)/              # Protected app layout (requires auth + profile)
+      hub/              # المحفظة — Cash on Hand overview
+      inflow/           # الدخل — Income sources
+      outflow/          # المصروف — Expenses & obligations
+      savings/          # المدخرات — Savings goals
+      investments/      # الاستثمارات — Investment deals
+      dashboard/        # التحليل — Charts & KPIs
+      statistics/       # إحصاءات العام — 12-period year table
+    onboarding/         # Period start day setup (first login)
+  contexts/
+    LanguageContext.tsx  # locale (ar/en), RTL toggle, t() helper
+    PeriodContext.tsx    # periodKey, navigation, startDay
+  lib/
+    supabase/           # client.ts, server.ts, middleware.ts
+    period.ts           # getPeriodKey, getPeriodDates, navigation helpers
+    utils.ts            # cn(), formatCurrency(), formatNumber()
+  types/
+    database.ts         # Full Supabase DB type definitions
+  components/
+    layout/             # Sidebar, PeriodNavigator
+    ui/                 # Reusable UI components
+supabase/
+  migrations/           # SQL migration files
+```
+
+## Core Concepts
+
+### Financial Period
+- Each user sets a `period_start_day` (1–28)
+- Period runs from `startDay` of month N to `startDay - 1` of month N+1
+- Period key format: `YYYY-MM` (represents the month the period starts)
+- Use `getPeriodKey(date, startDay)` and `getPeriodDates(key, startDay)` from `@/lib/period`
+
+### Bilingual Support
+- Use `useLanguage()` hook — provides `t(ar, en)`, `locale`, `isRTL`, `toggleLocale`
+- `t('عربي', 'English')` — always pass Arabic first, English second
+- HTML `dir` and `lang` attributes are set automatically on `<html>` element
+- Period date range display is always `dir="ltr"` regardless of app language
+
+### Supabase
+- All tables have RLS enabled — always filter by `user_id = auth.uid()`
+- Use `createClient()` from `@/lib/supabase/client` in Client Components
+- Use `createClient()` from `@/lib/supabase/server` in Server Components/Actions
+- Profile is auto-created on signup via trigger; redirect to `/onboarding` if `period_start_day` is null
+
+## UI Conventions
+- Brand blue: `#1B6EF3` (use `bg-brand`, `text-brand`, `border-brand`)
+- Cards: `bg-white rounded-xl border border-border shadow-sm`
+- Inputs: `rounded-xl border border-border focus:ring-2 focus:ring-brand/30 focus:border-brand`
+- Buttons (primary): `bg-brand text-white rounded-xl hover:bg-brand-dark`
+- Danger: `text-danger` / `bg-red-50`
+- Success: `text-success`
+- Warning: `text-warning`
+- Surface/background: `bg-surface` (`#F8F9FA`)
