@@ -2,7 +2,9 @@
 
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useMobileNavOptional } from '@/contexts/MobileNavContext'
 import type { AppNavItem } from '@/config/navigation'
+import { Menu } from 'lucide-react'
 
 type PageHeaderProps = {
   /** عنصر التنقل المطابق للقسم (أيقونة ولون كالشريط الجانبي) */
@@ -13,11 +15,12 @@ type PageHeaderProps = {
 
 export function PageHeader({ nav, subtitle, actions }: PageHeaderProps) {
   const { t } = useLanguage()
+  const mobileNav = useMobileNavOptional()
   const Icon = nav.icon
   const a = nav.accent
 
   return (
-    <header className="relative -mx-6 px-6 mb-8">
+    <header className="relative -mx-4 px-4 mb-8 lg:-mx-6 lg:px-6">
       <div
         className={cn(
           'relative overflow-hidden rounded-2xl',
@@ -30,7 +33,7 @@ export function PageHeader({ nav, subtitle, actions }: PageHeaderProps) {
         <div
           className={cn(
             'absolute inset-x-0 top-0 h-1 rounded-t-2xl',
-            'bg-gradient-to-l opacity-90',
+            'ltr:bg-gradient-to-r rtl:bg-gradient-to-l opacity-90',
             a.icon.includes('sky') && 'from-sky-400/80 via-sky-500/60 to-sky-400/30',
             a.icon.includes('emerald') && 'from-emerald-400/80 via-emerald-500/60 to-emerald-400/30',
             a.icon.includes('rose') && 'from-rose-400/80 via-rose-500/60 to-rose-400/30',
@@ -50,6 +53,16 @@ export function PageHeader({ nav, subtitle, actions }: PageHeaderProps) {
           <div className="min-w-0 flex-1">
             {/* العنوان والأيقونة في سطر واحد */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {mobileNav ? (
+                <button
+                  type="button"
+                  onClick={mobileNav.openMobileMenu}
+                  className="-ms-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200/80 bg-white text-slate-700 shadow-sm transition-colors hover:bg-surface lg:hidden"
+                  aria-label={t('فتح القائمة', 'Open menu')}
+                >
+                  <Menu className="h-6 w-6" strokeWidth={2} aria-hidden />
+                </button>
+              ) : null}
               <span
                 className={cn(
                   'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11',
@@ -81,7 +94,7 @@ export function PageHeader({ nav, subtitle, actions }: PageHeaderProps) {
         </div>
         {/* خط سفلي أوضح يحدد نهاية الرأس */}
         <div
-          className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"
+          className="h-px ltr:bg-gradient-to-r rtl:bg-gradient-to-l from-transparent via-slate-200 to-transparent"
           aria-hidden
         />
       </div>

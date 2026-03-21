@@ -221,7 +221,7 @@ export default function InvestmentsPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-5xl p-4 lg:p-6">
       <PageHeader
         nav={investmentsNav}
         subtitle={t('إدارة الاستثمارات وفتح/إغلاق الصفقات', 'Manage investments and open/close deals')}
@@ -239,7 +239,7 @@ export default function InvestmentsPage() {
       ) : (
         <>
           <div className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm">
-            <div className="grid grid-cols-1 lg:grid-cols-3 lg:items-center lg:divide-x divide-border">
+            <div className="grid grid-cols-1 lg:grid-cols-3 lg:items-center lg:divide-x lg:divide-border lg:rtl:divide-x-reverse">
               <div className="py-1 lg:px-4">
                 <div className="flex flex-col items-center text-center">
                   <p className="text-sm text-muted font-medium">{t('النقد المتاح (الحالي)', 'Available wallet cash (now)')}</p>
@@ -272,7 +272,7 @@ export default function InvestmentsPage() {
           </div>
 
           <div className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm">
-            <div className="grid w-full grid-cols-4 gap-2 sm:gap-2.5">
+            <div className="grid w-full grid-cols-2 gap-2 sm:gap-2.5 lg:grid-cols-4">
               <button
                 type="button"
                 onClick={() => {
@@ -365,7 +365,7 @@ export default function InvestmentsPage() {
                             </button>
                           </div>
 
-                          <div className={`min-w-0 flex-1 ${isRTL ? 'order-1 text-left ps-0' : 'order-2 text-right pe-0'}`}>
+                          <div className={`min-w-0 flex-1 ${isRTL ? 'order-1 text-start ps-0' : 'order-2 text-end pe-0'}`}>
                             <div className={`flex w-full items-center gap-3 ${isRTL ? 'justify-start' : 'justify-end'}`}>
                               <p className="min-w-0 text-sm font-bold text-slate-900 leading-relaxed break-words">
                                 {locale === 'ar' ? d.name_ar : d.name_en}
@@ -435,7 +435,7 @@ export default function InvestmentsPage() {
                             </button>
                           </div>
 
-                          <div className={`min-w-0 flex-1 ${isRTL ? 'order-1 text-left ps-0' : 'order-2 text-right pe-0'}`}>
+                          <div className={`min-w-0 flex-1 ${isRTL ? 'order-1 text-start ps-0' : 'order-2 text-end pe-0'}`}>
                             <div className={`flex w-full items-center gap-3 ${isRTL ? 'justify-start' : 'justify-end'}`}>
                               <p className="min-w-0 text-sm font-bold text-slate-900 leading-relaxed break-words">
                                 {locale === 'ar' ? d.name_ar : d.name_en}
@@ -451,7 +451,7 @@ export default function InvestmentsPage() {
 
                         <div className="my-2 border-t border-border" />
 
-                        <div className="grid grid-cols-4 gap-4 rounded-lg bg-slate-50/70 px-3 py-2">
+                        <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-50/70 px-3 py-2 sm:grid-cols-4 sm:gap-4">
                           <div className="text-center">
                             <p className="text-xs font-medium text-muted">{t('قيمة الفتح', 'Open value')}</p>
                             <p className="mt-0.5 text-sm font-bold tabular-nums text-slate-900 leading-none" dir="ltr">

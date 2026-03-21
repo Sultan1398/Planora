@@ -72,17 +72,18 @@ export function GeneralOutflowModal({ open, onClose, onSaved, edit, periodStart,
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      setError(t('يجب تسجيل الدخول', 'You must be signed in'))
-      return
-    }
+    setSaving(true)
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError(t('يجب تسجيل الدخول', 'You must be signed in'))
+        return
+      }
 
-    if (status === 'paid') {
-      try {
+      if (status === 'paid') {
         const available = edit
           ? await computeAvailableCashExcludingOutflow(supabase, user.id, minD, maxD, edit.id)
           : await computeAvailableCash(supabase, user.id, minD, maxD)
@@ -95,41 +96,38 @@ export function GeneralOutflowModal({ open, onClose, onSaved, edit, periodStart,
           )
           return
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error')
-        return
       }
-    }
 
-    /** لا نرسل obligation_id للمصروف العام — تجنب خطأ PostgREST إن لم يُنفَّذ بعد migration 002 */
-    const row = {
-      name_ar: ar || en,
-      name_en: en || ar,
-      amount: num,
-      status,
-      date: dateStr,
-    }
-
-    setSaving(true)
-    if (edit) {
-      const { error: up } = await supabase.from('outflows').update(row).eq('id', edit.id)
-      if (up) {
-        setError(up.message)
-        setSaving(false)
-        return
+      /** لا نرسل obligation_id للمصروف العام — تجنب خطأ PostgREST إن لم يُنفَّذ بعد migration 002 */
+      const row = {
+        name_ar: ar || en,
+        name_en: en || ar,
+        amount: num,
+        status,
+        date: dateStr,
       }
-    } else {
-      const { error: ins } = await supabase.from('outflows').insert({ ...row, user_id: user.id })
-      if (ins) {
-        setError(ins.message)
-        setSaving(false)
-        return
-      }
-    }
 
-    setSaving(false)
-    onSaved()
-    onClose()
+      if (edit) {
+        const { error: up } = await supabase.from('outflows').update(row).eq('id', edit.id)
+        if (up) {
+          setError(up.message)
+          return
+        }
+      } else {
+        const { error: ins } = await supabase.from('outflows').insert({ ...row, user_id: user.id })
+        if (ins) {
+          setError(ins.message)
+          return
+        }
+      }
+
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

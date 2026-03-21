@@ -114,16 +114,24 @@ export function ObligationPayModal({
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      setError(t('يجب تسجيل الدخول', 'You must be signed in'))
-      return
-    }
+    const usesColumn = obligationUsesPaidAmountColumn(obl)
+    const suffixAr = ' — سداد التزام'
+    const suffixEn = ' — obligation payment'
+    const tag = OBLIGATION_PAY_TAG(obl.id)
+    const name_ar = usesColumn ? `${obl.name_ar}${suffixAr}` : `${obl.name_ar}${suffixAr} ${tag}`
+    const name_en = usesColumn ? `${obl.name_en}${suffixEn}` : `${obl.name_en}${suffixEn} ${tag}`
 
+    setSaving(true)
     try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError(t('يجب تسجيل الدخول', 'You must be signed in'))
+        return
+      }
+
       const available = await computeAvailableCash(supabase, user.id, minD, maxD)
       if (num > available + 0.0001) {
         setError(
@@ -134,75 +142,63 @@ export function ObligationPayModal({
         )
         return
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error')
-      return
-    }
 
-    const usesColumn = obligationUsesPaidAmountColumn(obl)
-    const suffixAr = ' — سداد التزام'
-    const suffixEn = ' — obligation payment'
-    const tag = OBLIGATION_PAY_TAG(obl.id)
-    const name_ar = usesColumn ? `${obl.name_ar}${suffixAr}` : `${obl.name_ar}${suffixAr} ${tag}`
-    const name_en = usesColumn ? `${obl.name_en}${suffixEn}` : `${obl.name_en}${suffixEn} ${tag}`
+      const baseInsert = {
+        user_id: user.id,
+        name_ar,
+        name_en,
+        amount: num,
+        status: 'paid' as const,
+        date: dateStr,
+      }
 
-    setSaving(true)
+      const { data: inserted, error: outErr } = usesColumn
+        ? await supabase.from('outflows').insert({ ...baseInsert, obligation_id: obl.id }).select('id').maybeSingle()
+        : await supabase.from('outflows').insert(baseInsert).select('id').maybeSingle()
 
-    const baseInsert = {
-      user_id: user.id,
-      name_ar,
-      name_en,
-      amount: num,
-      status: 'paid' as const,
-      date: dateStr,
-    }
-
-    const { data: inserted, error: outErr } = usesColumn
-      ? await supabase.from('outflows').insert({ ...baseInsert, obligation_id: obl.id }).select('id').maybeSingle()
-      : await supabase.from('outflows').insert(baseInsert).select('id').maybeSingle()
-
-    if (outErr) {
-      setError(outErr.message)
-      setSaving(false)
-      return
-    }
-    const newOutflowId = inserted?.id as string | undefined
-
-    if (usesColumn) {
-      const newPaid = obligationPaidAmount(obl, markerPaidSum) + num
-      const { error: obErr } = await supabase.from('obligations').update({ paid_amount: newPaid }).eq('id', obl.id)
-      if (obErr) {
-        if (newOutflowId) await supabase.from('outflows').delete().eq('id', newOutflowId)
-        setError(obErr.message)
-        setSaving(false)
+      if (outErr) {
+        setError(outErr.message)
         return
       }
-    } else {
-      const currentPaid = obligationPaidAmount(obl, markerPaidSum)
-      const newPaidTotal = currentPaid + num
-      const newRem = Math.max(0, Number(obl.amount) - newPaidTotal)
-      const legacyStatus = (obl as { status?: 'paid' | 'pending' | null }).status
-      const obUpdate =
-        newRem <= 0.0001
-          ? { status: 'paid' as const }
-          : legacyStatus === 'paid'
-            ? { status: 'pending' as const }
-            : undefined
+      const newOutflowId = inserted?.id as string | undefined
 
-      if (obUpdate) {
-        const { error: obErr } = await supabase.from('obligations').update(obUpdate).eq('id', obl.id)
+      if (usesColumn) {
+        const newPaid = obligationPaidAmount(obl, markerPaidSum) + num
+        const { error: obErr } = await supabase.from('obligations').update({ paid_amount: newPaid }).eq('id', obl.id)
         if (obErr) {
           if (newOutflowId) await supabase.from('outflows').delete().eq('id', newOutflowId)
           setError(obErr.message)
-          setSaving(false)
           return
         }
-      }
-    }
+      } else {
+        const currentPaid = obligationPaidAmount(obl, markerPaidSum)
+        const newPaidTotal = currentPaid + num
+        const newRem = Math.max(0, Number(obl.amount) - newPaidTotal)
+        const legacyStatus = (obl as { status?: 'paid' | 'pending' | null }).status
+        const obUpdate =
+          newRem <= 0.0001
+            ? { status: 'paid' as const }
+            : legacyStatus === 'paid'
+              ? { status: 'pending' as const }
+              : undefined
 
-    setSaving(false)
-    onSaved()
-    onClose()
+        if (obUpdate) {
+          const { error: obErr } = await supabase.from('obligations').update(obUpdate).eq('id', obl.id)
+          if (obErr) {
+            if (newOutflowId) await supabase.from('outflows').delete().eq('id', newOutflowId)
+            setError(obErr.message)
+            return
+          }
+        }
+      }
+
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

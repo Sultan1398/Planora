@@ -27,13 +27,15 @@ export default function InflowPage() {
   const [editing, setEditing] = useState<Inflow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const loadInflows = useCallback(async () => {
+  const loadInflows = useCallback(async (isStillMounted: () => boolean = () => true) => {
+    if (!isStillMounted()) return
     setLoading(true)
     setFetchError('')
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (!isStillMounted()) return
     if (!user) {
       setRows([])
       setLoading(false)
@@ -50,6 +52,7 @@ export default function InflowPage() {
       .order('date', { ascending: false })
       .order('created_at', { ascending: false })
 
+    if (!isStillMounted()) return
     if (error) {
       setFetchError(error.message)
       setRows([])
@@ -60,7 +63,12 @@ export default function InflowPage() {
   }, [periodDates.start, periodDates.end])
 
   useEffect(() => {
-    loadInflows()
+    let isMounted = true
+    const isStillMounted = () => isMounted
+    void loadInflows(isStillMounted)
+    return () => {
+      isMounted = false
+    }
   }, [loadInflows, periodKey])
 
   const totals = useMemo(() => {
@@ -99,7 +107,7 @@ export default function InflowPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-4 lg:p-6">
       <PageHeader
         nav={inflowNav}
         subtitle={t('مصادر الدخل للفترة الحالية', 'Income sources for current period')}

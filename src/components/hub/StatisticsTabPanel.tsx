@@ -59,13 +59,15 @@ export function StatisticsTabPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isStillMounted: () => boolean = () => true) => {
+    if (!isStillMounted()) return
     setLoading(true)
     setError('')
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (!isStillMounted()) return
     if (!user) {
       setRows([])
       setLoading(false)
@@ -73,16 +75,24 @@ export function StatisticsTabPanel() {
     }
     try {
       const data = await fetchYearStatisticsRows(supabase, user.id, periodKey, startDay, fiscalStartMonth)
+      if (!isStillMounted()) return
       setRows(data)
     } catch (e) {
+      if (!isStillMounted()) return
       setError(e instanceof Error ? e.message : String(e))
       setRows([])
     }
+    if (!isStillMounted()) return
     setLoading(false)
   }, [periodKey, startDay, fiscalStartMonth])
 
   useEffect(() => {
-    void load()
+    let isMounted = true
+    const isStillMounted = () => isMounted
+    void load(isStillMounted)
+    return () => {
+      isMounted = false
+    }
   }, [load])
 
   const totals = useMemo(() => sumYearStatisticsRows(rows), [rows])

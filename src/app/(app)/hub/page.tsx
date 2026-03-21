@@ -75,13 +75,15 @@ function HubPageInner() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadHub = useCallback(async () => {
+  const loadHub = useCallback(async (isStillMounted: () => boolean = () => true) => {
+    if (!isStillMounted()) return
     setLoading(true)
     setError('')
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (!isStillMounted()) return
     if (!user) {
       setTotals(emptyTotals)
       setLoading(false)
@@ -110,6 +112,8 @@ function HubPageInner() {
         .in('type', ['deposit', 'withdrawal'] as const),
     ])
 
+    if (!isStillMounted()) return
+
     const firstErr =
       inflowsRes.error ||
       outflowsRes.error ||
@@ -117,6 +121,7 @@ function HubPageInner() {
       investmentsRes.error ||
       invWalletTxRes.error
     if (firstErr) {
+      if (!isStillMounted()) return
       setError(firstErr.message)
       setTotals(emptyTotals)
       setLoading(false)
@@ -182,6 +187,7 @@ function HubPageInner() {
       }
     }
 
+    if (!isStillMounted()) return
     setTotals({
       income,
       generalExpensesTotal,
@@ -198,10 +204,15 @@ function HubPageInner() {
   }, [periodDates.start, periodDates.end])
 
   useEffect(() => {
+    let isMounted = true
+    const isStillMounted = () => isMounted
     // Defer fetch so the effect body does not synchronously invoke setState (react-hooks/set-state-in-effect).
     queueMicrotask(() => {
-      void loadHub()
+      void loadHub(isStillMounted)
     })
+    return () => {
+      isMounted = false
+    }
   }, [loadHub, periodKey])
 
   const cashOnHand = useMemo(
@@ -248,11 +259,11 @@ function HubPageInner() {
     activeTab === 'year' ? 'max-w-[90rem]' : activeTab === 'analytics' ? 'max-w-6xl' : 'max-w-5xl'
 
   return (
-    <div className={cn('mx-auto p-6', shellMax)}>
+    <div className={cn('mx-auto p-4 lg:p-6', shellMax)}>
       <PageHeader nav={hubNav} subtitle={pageSubtitle} actions={<PeriodNavigator />} />
 
       <div
-        className="mb-8 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-gray-100 bg-white p-1.5 shadow-inner md:w-auto"
+        className="mb-8 inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-100 bg-white p-1.5 shadow-inner md:w-auto"
         role="tablist"
         id="hub-tablist"
         aria-label={t('أقسام المحفظة', 'Hub sections')}
@@ -266,8 +277,8 @@ function HubPageInner() {
           className={cn(
             'min-w-0 flex-1 cursor-pointer rounded-full px-7 py-3 text-sm transition-all duration-200 md:flex-initial',
             activeTab === 'overview'
-              ? 'bg-blue-600 font-bold text-white shadow-md'
-              : 'font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-brand font-bold text-white shadow-md'
+              : 'font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           {t('نظرة عامة', 'Overview')}
@@ -281,8 +292,8 @@ function HubPageInner() {
           className={cn(
             'min-w-0 flex-1 cursor-pointer rounded-full px-7 py-3 text-sm transition-all duration-200 md:flex-initial',
             activeTab === 'analytics'
-              ? 'bg-blue-600 font-bold text-white shadow-md'
-              : 'font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-brand font-bold text-white shadow-md'
+              : 'font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           {t('التحليل', 'Analytics')}
@@ -296,8 +307,8 @@ function HubPageInner() {
           className={cn(
             'min-w-0 flex-1 cursor-pointer rounded-full px-7 py-3 text-sm transition-all duration-200 md:flex-initial',
             activeTab === 'year'
-              ? 'bg-blue-600 font-bold text-white shadow-md'
-              : 'font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-brand font-bold text-white shadow-md'
+              : 'font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900'
           )}
         >
           {t('إحصاءات العام', 'Year statistics')}
@@ -317,7 +328,7 @@ function HubPageInner() {
             </div>
           ) : null}
 
-          <div className="relative mb-6 overflow-hidden rounded-2xl bg-brand p-6 text-white shadow-sm">
+          <div className="relative mb-6 overflow-hidden rounded-2xl bg-brand p-4 text-white shadow-sm lg:p-6">
             <p className="mb-2 text-sm font-medium text-white/80">{t('النقد المتاح', 'Cash on Hand')}</p>
             <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">{fmt(cashOnHand)}</p>
             <p className="mt-3 text-xs font-normal leading-relaxed text-white/70">
@@ -325,7 +336,7 @@ function HubPageInner() {
             </p>
           </div>
 
-          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {summaryCards.map((card) => (
               <div
                 key={card.labelEn}
@@ -338,16 +349,16 @@ function HubPageInner() {
           </div>
 
           <div className="mb-6 rounded-xl border border-border bg-white p-5 shadow-sm">
-            <h2 className="mb-5 text-center text-base font-semibold text-gray-500">
+            <h2 className="mb-5 text-center text-base font-semibold text-slate-500">
               {t('ملخص الاستثمارات', 'Investments Summary')}
             </h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="text-center">
-                <p className="mb-2 text-sm font-medium text-gray-500">{t('إجمالي المستثمر', 'Total Invested')}</p>
+                <p className="mb-2 text-sm font-medium text-slate-500">{t('إجمالي المستثمر', 'Total Invested')}</p>
                 <p className="text-xl font-bold tabular-nums text-slate-900">{fmt(totals.investedOpen)}</p>
               </div>
               <div className="text-center">
-                <p className="mb-2 text-sm font-medium text-gray-500">{t('صافي الربح/الخسارة', 'Net P&L')}</p>
+                <p className="mb-2 text-sm font-medium text-slate-500">{t('صافي الربح/الخسارة', 'Net P&L')}</p>
                 <p
                   className={`text-xl font-bold tabular-nums ${
                     totals.investmentNetPL >= 0 ? 'text-success' : 'text-danger'
@@ -357,7 +368,7 @@ function HubPageInner() {
                 </p>
               </div>
               <div className="text-center">
-                <p className="mb-2 text-sm font-medium text-gray-500">{t('صفقات مفتوحة', 'Open Deals')}</p>
+                <p className="mb-2 text-sm font-medium text-slate-500">{t('صفقات مفتوحة', 'Open Deals')}</p>
                 <p className="text-xl font-bold tabular-nums text-slate-900">
                   {loading ? '—' : String(totals.openDeals)}
                 </p>
@@ -401,7 +412,7 @@ export default function HubPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-5xl p-6">
+        <div className="mx-auto max-w-5xl p-4 lg:p-6">
           <div className="rounded-xl border border-border bg-white p-12 text-center text-muted">
             {t('جارٍ التحميل…', 'Loading…')}
           </div>

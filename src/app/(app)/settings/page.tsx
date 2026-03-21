@@ -87,7 +87,7 @@ export default function SettingsPage() {
   const days = Array.from({ length: 28 }, (_, i) => i + 1)
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 max-w-3xl mx-auto space-y-6 lg:p-6">
       <PageHeader
         nav={settingsNav}
         subtitle={t('إدارة إعدادات حسابك', 'Manage your account settings')}

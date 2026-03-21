@@ -102,22 +102,23 @@ export function SavingsTransactionModal({
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      setError(t('يجب تسجيل الدخول', 'You must be signed in'))
-      return
-    }
-
-    if (mode === 'withdrawal') {
-      if (num > current + 0.0001) {
-        setError(t('المبلغ أكبر من رصيد الهدف', 'Amount exceeds the goal balance'))
+    setSaving(true)
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError(t('يجب تسجيل الدخول', 'You must be signed in'))
         return
       }
-    } else {
-      try {
+
+      if (mode === 'withdrawal') {
+        if (num > current + 0.0001) {
+          setError(t('المبلغ أكبر من رصيد الهدف', 'Amount exceeds the goal balance'))
+          return
+        }
+      } else {
         const available = await computeAvailableCash(supabase, user.id, minD, maxD)
         if (num > available + 0.0001) {
           setError(
@@ -128,29 +129,27 @@ export function SavingsTransactionModal({
           )
           return
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error')
+      }
+
+      const { error: insErr } = await supabase.from('savings_transactions').insert({
+        user_id: user.id,
+        goal_id: activeGoal.id,
+        type: mode,
+        amount: num,
+        date: dateStr,
+      })
+      if (insErr) {
+        setError(insErr.message)
         return
       }
-    }
 
-    setSaving(true)
-    const { error: insErr } = await supabase.from('savings_transactions').insert({
-      user_id: user.id,
-      goal_id: activeGoal.id,
-      type: mode,
-      amount: num,
-      date: dateStr,
-    })
-    if (insErr) {
-      setError(insErr.message)
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
       setSaving(false)
-      return
     }
-
-    setSaving(false)
-    onSaved()
-    onClose()
   }
 
   return (

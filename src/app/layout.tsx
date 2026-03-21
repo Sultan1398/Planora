@@ -6,13 +6,13 @@ import { LanguageProvider } from '@/contexts/LanguageContext'
 const almarai = Almarai({
   weight: ['300', '400', '700', '800'],
   subsets: ['arabic', 'latin'],
-  variable: '--font-geist-sans',
+  variable: '--font-almarai',
   display: 'swap',
 })
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
-  variable: '--font-geist-mono',
+  variable: '--font-jetbrains-mono',
 })
 
 export const metadata: Metadata = {

@@ -7,10 +7,9 @@ import { PeriodNavigator } from '@/components/layout/PeriodNavigator'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { getAppNavItem } from '@/config/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { dateToLocalISODate } from '@/lib/date-local'
+import { dateToLocalISODate, parseLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
 import { formatGregorianDate } from '@/lib/period'
-import { parseLocalISODate } from '@/lib/date-local'
 import { computeAvailableCash } from '@/lib/cash-liquidity'
 import {
   obligationPaidAmount,
@@ -53,13 +52,15 @@ export default function OutflowPage() {
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (isStillMounted: () => boolean = () => true) => {
+    if (!isStillMounted()) return
     setLoading(true)
     setError('')
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (!isStillMounted()) return
     if (!user) {
       setOutflows([])
       setObligations([])
@@ -89,6 +90,8 @@ export default function OutflowPage() {
         .eq('user_id', user.id),
     ])
 
+    if (!isStillMounted()) return
+
     if (markerRes.error) {
       setError((prev) => (prev ? `${prev} · ${markerRes.error!.message}` : markerRes.error!.message))
       setOutflowsForObligationMarkers([])
@@ -116,16 +119,24 @@ export default function OutflowPage() {
 
     try {
       const cash = await computeAvailableCash(supabase, user.id, start, end)
+      if (!isStillMounted()) return
       setAvailableCash(cash)
     } catch {
+      if (!isStillMounted()) return
       setAvailableCash(null)
     }
 
+    if (!isStillMounted()) return
     setLoading(false)
   }, [start, end])
 
   useEffect(() => {
-    reload()
+    let isMounted = true
+    const isStillMounted = () => isMounted
+    void reload(isStillMounted)
+    return () => {
+      isMounted = false
+    }
   }, [reload, periodKey])
 
   function openAddGeneral() {
@@ -182,7 +193,7 @@ export default function OutflowPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-4 lg:p-6">
       <PageHeader
         nav={outflowNav}
         subtitle={t('المصروفات العامة والتزامات مالية', 'General expenses and financial obligations')}

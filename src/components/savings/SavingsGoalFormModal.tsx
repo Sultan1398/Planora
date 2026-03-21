@@ -90,68 +90,71 @@ export function SavingsGoalFormModal({ open, onClose, onSaved, edit }: Props) {
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      setError(t('يجب تسجيل الدخول', 'You must be signed in'))
-      return
-    }
-
-    const row = {
-      name_ar: ar || en,
-      name_en: en || ar,
-      target_amount: num,
-      start_date: startDate,
-      target_date: targetDate,
-    }
-
     setSaving(true)
-    if (edit) {
-      let { error: up } = await supabase.from('savings_goals').update(row).eq('id', edit.id)
-      if (up && isMissingStartDateColumn(up.message)) {
-        // توافق مع مخطط أقدم قبل migration 003
-        ;({ error: up } = await supabase
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError(t('يجب تسجيل الدخول', 'You must be signed in'))
+        return
+      }
+
+      const row = {
+        name_ar: ar || en,
+        name_en: en || ar,
+        target_amount: num,
+        start_date: startDate,
+        target_date: targetDate,
+      }
+
+      if (edit) {
+        let { error: up } = await supabase.from('savings_goals').update(row).eq('id', edit.id)
+        if (up && isMissingStartDateColumn(up.message)) {
+          // توافق مع مخطط أقدم قبل migration 003
+          ;({ error: up } = await supabase
+            .from('savings_goals')
+            .update({
+              name_ar: ar || en,
+              name_en: en || ar,
+              target_amount: num,
+              target_date: targetDate,
+            })
+            .eq('id', edit.id))
+        }
+        if (up) {
+          setError(up.message)
+          return
+        }
+      } else {
+        let { error: ins } = await supabase
           .from('savings_goals')
-          .update({
+          .insert({ ...row, user_id: user.id, current_amount: 0 })
+        if (ins && isMissingStartDateColumn(ins.message)) {
+          // توافق مع مخطط أقدم قبل migration 003
+          ;({ error: ins } = await supabase.from('savings_goals').insert({
             name_ar: ar || en,
             name_en: en || ar,
             target_amount: num,
             target_date: targetDate,
-          })
-          .eq('id', edit.id))
+            user_id: user.id,
+            current_amount: 0,
+          }))
+        }
+        if (ins) {
+          setError(ins.message)
+          return
+        }
       }
-      if (up) {
-        setError(up.message)
-        setSaving(false)
-        return
-      }
-    } else {
-      let { error: ins } = await supabase
-        .from('savings_goals')
-        .insert({ ...row, user_id: user.id, current_amount: 0 })
-      if (ins && isMissingStartDateColumn(ins.message)) {
-        // توافق مع مخطط أقدم قبل migration 003
-        ;({ error: ins } = await supabase.from('savings_goals').insert({
-          name_ar: ar || en,
-          name_en: en || ar,
-          target_amount: num,
-          target_date: targetDate,
-          user_id: user.id,
-          current_amount: 0,
-        }))
-      }
-      if (ins) {
-        setError(ins.message)
-        setSaving(false)
-        return
-      }
-    }
 
-    setSaving(false)
-    onSaved()
-    onClose()
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

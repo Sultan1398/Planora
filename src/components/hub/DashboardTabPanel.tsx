@@ -29,13 +29,15 @@ export function DashboardTabPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (isStillMounted: () => boolean = () => true) => {
+    if (!isStillMounted()) return
     setLoading(true)
     setError('')
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (!isStillMounted()) return
     if (!user) {
       setSeries([])
       setLoading(false)
@@ -43,16 +45,24 @@ export function DashboardTabPanel() {
     }
     try {
       const data = await fetchDashboardYearSeries(supabase, user.id, periodKey, startDay, fiscalStartMonth)
+      if (!isStillMounted()) return
       setSeries(data)
     } catch (e) {
+      if (!isStillMounted()) return
       setError(e instanceof Error ? e.message : String(e))
       setSeries([])
     }
+    if (!isStillMounted()) return
     setLoading(false)
   }, [periodKey, startDay, fiscalStartMonth])
 
   useEffect(() => {
-    void load()
+    let isMounted = true
+    const isStillMounted = () => isMounted
+    void load(isStillMounted)
+    return () => {
+      isMounted = false
+    }
   }, [load])
 
   const totals = useMemo(() => sumDashboardYear(series), [series])
@@ -110,7 +120,7 @@ export function DashboardTabPanel() {
         </div>
       ) : (
         <div className="space-y-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
               <p className="text-xs font-medium text-muted">{t('إجمالي الإيرادات (١٢ فترة)', 'Total income (12 periods)')}</p>
               <p className="mt-1 text-xl font-bold tabular-nums text-emerald-600" dir="ltr">
@@ -279,7 +289,7 @@ export function DashboardTabPanel() {
             <p className="text-sm text-muted mb-4">
               {t('مجموع ١٢ فترة: تحويلات المحفظة، فتح/إغلاق الصفقات، والربح المحقق عند الإغلاق', '12-period totals: wallet transfers, deal flows, and realized P/L')}
             </p>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-surface p-4">
                 <p className="text-xs text-muted">{t('إيداع للاستثمارات', 'Deposits to investments')}</p>
                 <p className="mt-1 font-bold tabular-nums text-brand" dir="ltr">

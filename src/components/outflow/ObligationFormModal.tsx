@@ -86,52 +86,54 @@ export function ObligationFormModal({
       return
     }
 
-    const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      setError(t('يجب تسجيل الدخول', 'You must be signed in'))
-      return
-    }
-
-    const row = {
-      name_ar: ar || en,
-      name_en: en || ar,
-      amount: num,
-      due_date: dueDate,
-      date: dateStr,
-    }
-
     setSaving(true)
-    if (edit) {
-      const paid = obligationPaidAmount(edit, markerPaidSum)
-      if (num < paid - 0.0001) {
-        setError(
-          t('إجمالي الالتزام لا يمكن أن يكون أقل من المسدَّد بالفعل', 'Total cannot be less than amount already paid')
-        )
-        setSaving(false)
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setError(t('يجب تسجيل الدخول', 'You must be signed in'))
         return
       }
-      const { error: up } = await supabase.from('obligations').update(row).eq('id', edit.id)
-      if (up) {
-        setError(up.message)
-        setSaving(false)
-        return
-      }
-    } else {
-      /** لا نرسل paid_amount — الافتراضي 0 بعد migration 002؛ المخطط 001 بدون هذا العمود */
-      const { error: ins } = await supabase.from('obligations').insert({ ...row, user_id: user.id })
-      if (ins) {
-        setError(ins.message)
-        setSaving(false)
-        return
-      }
-    }
 
-    setSaving(false)
-    onSaved()
-    onClose()
+      const row = {
+        name_ar: ar || en,
+        name_en: en || ar,
+        amount: num,
+        due_date: dueDate,
+        date: dateStr,
+      }
+
+      if (edit) {
+        const paid = obligationPaidAmount(edit, markerPaidSum)
+        if (num < paid - 0.0001) {
+          setError(
+            t('إجمالي الالتزام لا يمكن أن يكون أقل من المسدَّد بالفعل', 'Total cannot be less than amount already paid')
+          )
+          return
+        }
+        const { error: up } = await supabase.from('obligations').update(row).eq('id', edit.id)
+        if (up) {
+          setError(up.message)
+          return
+        }
+      } else {
+        /** لا نرسل paid_amount — الافتراضي 0 بعد migration 002؛ المخطط 001 بدون هذا العمود */
+        const { error: ins } = await supabase.from('obligations').insert({ ...row, user_id: user.id })
+        if (ins) {
+          setError(ins.message)
+          return
+        }
+      }
+
+      onSaved()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

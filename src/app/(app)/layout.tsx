@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Sidebar } from '@/components/layout/Sidebar'
+import { AppShell } from '@/components/layout/AppShell'
 import { PeriodProvider } from '@/contexts/PeriodContext'
 
 export default async function AppLayout({
@@ -32,12 +32,7 @@ export default async function AppLayout({
 
   return (
     <PeriodProvider initialStartDay={profile.period_start_day} initialFiscalStartMonth={fiscalMonth}>
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 bg-[#F6F8FD] overflow-auto">
-          {children}
-        </main>
-      </div>
+      <AppShell>{children}</AppShell>
     </PeriodProvider>
   )
 }

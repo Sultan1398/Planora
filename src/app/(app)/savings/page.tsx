@@ -7,9 +7,8 @@ import { PeriodNavigator } from '@/components/layout/PeriodNavigator'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { getAppNavItem } from '@/config/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { dateToLocalISODate } from '@/lib/date-local'
+import { dateToLocalISODate, parseLocalISODate } from '@/lib/date-local'
 import { formatGregorianDate } from '@/lib/period'
-import { parseLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
 import { computeAvailableCash } from '@/lib/cash-liquidity'
 import { deleteSavingsGoalWithOrderedTxRemoval } from '@/lib/savings-delete-goal'
@@ -40,13 +39,15 @@ export default function SavingsPage() {
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (isStillMounted: () => boolean = () => true) => {
+    if (!isStillMounted()) return
     setLoading(true)
     setError('')
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (!isStillMounted()) return
     if (!user) {
       setGoals([])
       setAvailableCash(null)
@@ -59,6 +60,7 @@ export default function SavingsPage() {
       computeAvailableCash(supabase, user.id, start, end).catch(() => null),
     ])
 
+    if (!isStillMounted()) return
     if (gRes.error) {
       setError(gRes.error.message)
       setGoals([])
@@ -70,7 +72,12 @@ export default function SavingsPage() {
   }, [start, end])
 
   useEffect(() => {
-    reload()
+    let isMounted = true
+    const isStillMounted = () => isMounted
+    void reload(isStillMounted)
+    return () => {
+      isMounted = false
+    }
   }, [reload, periodKey])
 
   function openNewGoal() {
@@ -118,7 +125,7 @@ export default function SavingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-4xl p-4 lg:p-6">
       <PageHeader
         nav={savingsNav}
         subtitle={t('أهداف الادخار والمعاملات', 'Savings goals and transactions')}
