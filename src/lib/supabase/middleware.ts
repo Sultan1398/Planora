@@ -32,12 +32,16 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  /** صفحة الهبوط عامة لكل الزوار؛ صفحات الدخول/التسجيل فقط تُعاد توجيه المستخدم المسجّل منها */
-  const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/signup')
+  /** صفحات المصادقة العامة */
+  const isEntryAuthRoute =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/forgot-password')
+  const isResetPasswordRoute = pathname.startsWith('/reset-password')
   const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/')
   const isAdmin = user?.user_metadata?.role === 'admin'
   const defaultAuthedPath = isAdmin ? '/admin' : '/hub'
-  const allowWithoutAuth = pathname === '/' || isAuthRoute
+  const allowWithoutAuth = pathname === '/' || isEntryAuthRoute || isResetPasswordRoute
 
   if (!user && !allowWithoutAuth) {
     const url = request.nextUrl.clone()
@@ -45,7 +49,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthRoute) {
+  if (user && isEntryAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = defaultAuthedPath
     return NextResponse.redirect(url)

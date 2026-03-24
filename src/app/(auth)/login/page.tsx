@@ -82,9 +82,14 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5">
-                {t('كلمة المرور', 'Password')}
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <label className="block text-sm font-medium">
+                  {t('كلمة المرور', 'Password')}
+                </label>
+                <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">
+                  {t('نسيت كلمة المرور؟', 'Forgot password?')}
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}
