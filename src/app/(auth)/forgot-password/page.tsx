@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Logo } from '@/components/ui/Logo'
 import { mapAuthError } from '@/lib/utils/auth-errors'
+import { getSiteUrl } from '@/lib/utils/url'
 
 export default function ForgotPasswordPage() {
   const { t, toggleLocale, locale } = useLanguage()
@@ -23,8 +24,9 @@ export default function ForgotPasswordPage() {
     setLoading(true)
     try {
       const supabase = createClient()
+      const origin = getSiteUrl()
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+        redirectTo: `${origin}/auth/callback?next=/reset-password`,
       })
       if (resetError) throw new Error(resetError.message)
       setIsSubmitted(true)
