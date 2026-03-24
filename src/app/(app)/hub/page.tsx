@@ -10,11 +10,28 @@ import { getAppNavItem } from '@/config/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { dateToLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
-import { outflowIsObligationLinkedExpense } from '@/lib/obligation-helpers'
+import {
+  obligationPaidAmount,
+  obligationRemaining,
+  outflowIsObligationLinkedExpense,
+  sumLegacyMarkerPayments,
+} from '@/lib/obligation-helpers'
 import { cn } from '@/lib/utils'
 import { DashboardTabPanel } from '@/components/hub/DashboardTabPanel'
 import { FinancialReminders } from '@/components/layout/FinancialReminders'
 import { StatisticsTabPanel } from '@/components/hub/StatisticsTabPanel'
+import {
+  TrendingUp,
+  ShoppingCart,
+  Landmark,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Briefcase,
+  Activity,
+  Layers,
+  List,
+} from 'lucide-react'
 
 const hubNav = getAppNavItem('/hub')
 
@@ -30,6 +47,9 @@ type HubTotals = {
   generalExpensesTotal: number
   generalExpensesPaid: number
   obligationPaymentsInPeriod: number
+  totalObligations: number
+  totalObligationsPaid: number
+  totalObligationsRemaining: number
   totalPaidFromWallet: number
   savingsNet: number
   investmentsNet: number
@@ -43,6 +63,9 @@ const emptyTotals: HubTotals = {
   generalExpensesTotal: 0,
   generalExpensesPaid: 0,
   obligationPaymentsInPeriod: 0,
+  totalObligations: 0,
+  totalObligationsPaid: 0,
+  totalObligationsRemaining: 0,
   totalPaidFromWallet: 0,
   savingsNet: 0,
   investmentsNet: 0,
@@ -94,7 +117,7 @@ function HubPageInner() {
     const start = dateToLocalISODate(periodDates.start)
     const end = dateToLocalISODate(periodDates.end)
 
-    const [inflowsRes, outflowsRes, savingsTxRes, investmentsRes, invWalletTxRes] = await Promise.all([
+    const [inflowsRes, outflowsRes, savingsTxRes, investmentsRes, invWalletTxRes, obligationsRes, markerOutflowsRes] = await Promise.all([
       supabase.from('inflows').select('amount').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase
         .from('outflows')
@@ -111,6 +134,9 @@ function HubPageInner() {
         .gte('date', start)
         .lte('date', end)
         .in('type', ['deposit', 'withdrawal'] as const),
+      // ملاحظة توافق: لا نطلب paid_amount صراحة حتى لا ينكسر المخطط القديم (001)
+      supabase.from('obligations').select('*').eq('user_id', user.id),
+      supabase.from('outflows').select('amount, name_ar, name_en').eq('user_id', user.id),
     ])
 
     if (!isStillMounted()) return
@@ -120,7 +146,9 @@ function HubPageInner() {
       outflowsRes.error ||
       savingsTxRes.error ||
       investmentsRes.error ||
-      invWalletTxRes.error
+      invWalletTxRes.error ||
+      obligationsRes.error ||
+      markerOutflowsRes.error
     if (firstErr) {
       if (!isStillMounted()) return
       setError(firstErr.message)
@@ -143,6 +171,17 @@ function HubPageInner() {
       status: string
       exit_amount: number | null
     }[]
+    const obligationRows = (obligationsRes.data ?? []) as {
+      id: string
+      amount: number
+      paid_amount?: number | null
+      status?: 'paid' | 'pending' | null
+    }[]
+    const markerRows = (markerOutflowsRes.data ?? []) as Array<{
+      amount: number
+      name_ar?: string | null
+      name_en?: string | null
+    }>
 
     let income = 0
     for (const r of inflowRows) income += Number(r.amount)
@@ -188,12 +227,29 @@ function HubPageInner() {
       }
     }
 
+    let totalObligations = 0
+    let totalObligationsPaid = 0
+    for (const r of obligationRows) {
+      const amount = Number(r.amount)
+      const markerPaid = sumLegacyMarkerPayments(markerRows, r.id)
+      const paid = Math.max(0, Math.min(amount, obligationPaidAmount(r, markerPaid)))
+      totalObligations += amount
+      totalObligationsPaid += paid
+    }
+    const totalObligationsRemaining = obligationRows.reduce((sum, r) => {
+      const markerPaid = sumLegacyMarkerPayments(markerRows, r.id)
+      return sum + obligationRemaining(r, markerPaid)
+    }, 0)
+
     if (!isStillMounted()) return
     setTotals({
       income,
       generalExpensesTotal,
       generalExpensesPaid,
       obligationPaymentsInPeriod,
+      totalObligations,
+      totalObligationsPaid,
+      totalObligationsRemaining,
       totalPaidFromWallet: totalPaidFromWallet,
       savingsNet,
       investmentsNet,
@@ -222,23 +278,6 @@ function HubPageInner() {
   )
 
   const fmt = (n: number) => (loading ? '—' : formatMoney(n, locale))
-
-  const summaryCards = [
-    { labelAr: 'إجمالي الدخل', labelEn: 'Total Income', value: totals.income, color: 'text-success' },
-    {
-      labelAr: 'المصروفات العامة',
-      labelEn: 'General expenses',
-      value: totals.generalExpensesTotal,
-      color: 'text-danger',
-    },
-    {
-      labelAr: 'سداد التزامات',
-      labelEn: 'Obligation payments',
-      value: totals.obligationPaymentsInPeriod,
-      color: 'text-warning',
-    },
-    { labelAr: 'المدخرات', labelEn: 'Savings', value: totals.savingsNet, color: 'text-brand' },
-  ] as const
 
   const pageSubtitle = useMemo(() => {
     if (activeTab === 'analytics') {
@@ -339,44 +378,140 @@ function HubPageInner() {
             </p>
           </div>
 
-          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {summaryCards.map((card) => (
-              <div
-                key={card.labelEn}
-                className="rounded-xl border border-border bg-white p-5 text-center shadow-sm"
-              >
-                <p className="mb-2 text-sm font-medium text-muted">{t(card.labelAr, card.labelEn)}</p>
-                <p className={`text-2xl font-bold tabular-nums ${card.color}`}>{fmt(card.value)}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mb-6 rounded-xl border border-border bg-white p-5 shadow-sm">
-            <h2 className="mb-5 text-center text-base font-semibold text-slate-500">
-              {t('ملخص الاستثمارات', 'Investments Summary')}
-            </h2>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="text-center">
-                <p className="mb-2 text-sm font-medium text-slate-500">{t('إجمالي المستثمر', 'Total Invested')}</p>
-                <p className="text-xl font-bold tabular-nums text-slate-900">{fmt(totals.investedOpen)}</p>
-              </div>
-              <div className="text-center">
-                <p className="mb-2 text-sm font-medium text-slate-500">{t('صافي الربح/الخسارة', 'Net P&L')}</p>
-                <p
-                  className={`text-xl font-bold tabular-nums ${
-                    totals.investmentNetPL >= 0 ? 'text-success' : 'text-danger'
-                  }`}
-                >
-                  {fmt(totals.investmentNetPL)}
+          <div className="mb-6 space-y-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm text-muted">{t('إجمالي الدخل', 'Total income')}</p>
+                  <TrendingUp className="h-5 w-5 text-emerald-500" />
+                </div>
+                <p className="text-2xl font-bold tabular-nums text-emerald-500" dir="ltr">
+                  {fmt(totals.income)}
                 </p>
               </div>
-              <div className="text-center">
-                <p className="mb-2 text-sm font-medium text-slate-500">{t('صفقات مفتوحة', 'Open Deals')}</p>
-                <p className="text-xl font-bold tabular-nums text-slate-900">
-                  {loading ? '—' : String(totals.openDeals)}
+              <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm text-muted">{t('المصروفات العامة', 'General expenses')}</p>
+                  <ShoppingCart className="h-5 w-5 text-rose-500" />
+                </div>
+                <p className="text-2xl font-bold tabular-nums text-rose-500" dir="ltr">
+                  {fmt(totals.generalExpensesTotal)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm text-muted">{t('المدخرات', 'Savings')}</p>
+                  <Landmark className="h-5 w-5 text-blue-500" />
+                </div>
+                <p className="text-2xl font-bold tabular-nums text-blue-500" dir="ltr">
+                  {fmt(totals.savingsNet)}
                 </p>
               </div>
             </div>
+
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-lg bg-slate-100 p-2">
+                  <List className="h-5 w-5 text-slate-600" />
+                </div>
+                <div className="flex flex-col">
+                  <h2 className="text-lg font-bold text-slate-800">
+                    {t('ملخص الالتزامات', 'Obligations summary')}
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    {t('تابع تفاصيل ديونك وحالة السداد', 'Track your debt details and payment status')}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm text-muted">{t('إجمالي الالتزامات', 'Total obligations')}</p>
+                    <FileText className="h-5 w-5 text-slate-700" />
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums text-slate-800" dir="ltr">
+                    {fmt(totals.totalObligations)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm text-muted">{t('إجمالي المسدد', 'Total paid')}</p>
+                    <CheckCircle className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums text-emerald-500" dir="ltr">
+                    {fmt(totals.totalObligationsPaid)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm text-muted">{t('إجمالي المتبقي', 'Total remaining')}</p>
+                    <AlertCircle className="h-5 w-5 text-orange-500" />
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums text-orange-500" dir="ltr">
+                    {fmt(totals.totalObligationsRemaining)}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="rounded-lg bg-indigo-50 p-2">
+                  <Briefcase className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div className="flex flex-col">
+                  <h2 className="text-lg font-bold text-slate-800">
+                    {t('ملخص الاستثمارات', 'Investments summary')}
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    {t(
+                      'أداء محفظتك الاستثمارية وصفقاتك النشطة',
+                      'Portfolio performance and your active deals'
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm text-muted">{t('إجمالي المستثمر', 'Total invested')}</p>
+                    <Briefcase className="h-5 w-5 text-indigo-500" />
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums text-indigo-500" dir="ltr">
+                    {fmt(totals.investedOpen)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm text-muted">{t('صافي الربح/الخسارة', 'Net P/L')}</p>
+                    <Activity
+                      className={cn(
+                        'h-5 w-5',
+                        totals.investmentNetPL >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                      )}
+                    />
+                  </div>
+                  <p
+                    className={cn(
+                      'text-2xl font-bold tabular-nums',
+                      totals.investmentNetPL >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                    )}
+                    dir="ltr"
+                  >
+                    {fmt(totals.investmentNetPL)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-sm text-muted">{t('الصفقات المفتوحة', 'Open deals')}</p>
+                    <Layers className="h-5 w-5 text-slate-500" />
+                  </div>
+                  <p className="text-2xl font-bold tabular-nums text-slate-700" dir="ltr">
+                    {loading ? '—' : String(totals.openDeals)}
+                  </p>
+                </div>
+              </div>
+            </section>
           </div>
 
           <div className="hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-danger">

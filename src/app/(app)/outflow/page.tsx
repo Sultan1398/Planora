@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { usePeriod } from '@/contexts/PeriodContext'
 import { PeriodNavigator } from '@/components/layout/PeriodNavigator'
@@ -21,7 +21,17 @@ import type { Outflow, Obligation } from '@/types/database'
 import { GeneralOutflowModal } from '@/components/outflow/GeneralOutflowModal'
 import { ObligationFormModal } from '@/components/outflow/ObligationFormModal'
 import { ObligationPayModal } from '@/components/outflow/ObligationPayModal'
-import { Pencil, Trash2, Loader2, Wallet, CreditCard, CheckCircle2 } from 'lucide-react'
+import {
+  Pencil,
+  Trash2,
+  Loader2,
+  Wallet,
+  CreditCard,
+  CheckCircle2,
+  ReceiptText,
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const outflowNav = getAppNavItem('/outflow')
@@ -51,6 +61,25 @@ export default function OutflowPage() {
 
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
+
+  const totalObligations = useMemo(
+    () => obligations.reduce((sum, row) => sum + Number(row.amount), 0),
+    [obligations]
+  )
+
+  const totalPaid = useMemo(
+    () =>
+      obligations.reduce((sum, row) => {
+        const markerPaid = sumLegacyMarkerPayments(outflowsForObligationMarkers, row.id)
+        return sum + obligationPaidAmount(row, markerPaid)
+      }, 0),
+    [obligations, outflowsForObligationMarkers]
+  )
+
+  const totalRemaining = useMemo(
+    () => Math.max(0, totalObligations - totalPaid),
+    [totalObligations, totalPaid]
+  )
 
   const reload = useCallback(async (isStillMounted: () => boolean = () => true) => {
     if (!isStillMounted()) return
@@ -323,11 +352,43 @@ export default function OutflowPage() {
         </>
       ) : (
         <>
-          <div className="flex justify-end mb-4">
+          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm text-muted">{t('إجمالي الالتزامات', 'Total obligations')}</p>
+                <ReceiptText className="h-5 w-5 text-slate-700" />
+              </div>
+              <p className="text-2xl font-bold text-slate-900 tabular-nums" dir="ltr">
+                {formatMoney(totalObligations, locale)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm text-muted">{t('إجمالي المسدد', 'Total paid')}</p>
+                <CheckCircle className="h-5 w-5 text-emerald-500" />
+              </div>
+              <p className="text-2xl font-bold text-emerald-600 tabular-nums" dir="ltr">
+                {formatMoney(totalPaid, locale)}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm text-muted">{t('إجمالي المتبقي', 'Total remaining')}</p>
+                <AlertCircle className="h-5 w-5 text-orange-500" />
+              </div>
+              <p className="text-2xl font-bold text-orange-600 tabular-nums" dir="ltr">
+                {formatMoney(totalRemaining, locale)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mb-4 flex justify-start">
             <button
               type="button"
               onClick={openAddObligation}
-              className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
+              className="h-10 rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
             >
               {t('+ التزام مالي', '+ Financial obligation')}
             </button>
