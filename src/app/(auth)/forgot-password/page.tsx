@@ -4,11 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { MailCheck } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Logo } from '@/components/ui/Logo'
+import { sendPasswordResetEmail } from '@/app/actions/forgot-password'
 import { mapAuthError } from '@/lib/utils/auth-errors'
-import { getSiteUrl } from '@/lib/utils/url'
 
 export default function ForgotPasswordPage() {
   const { t, toggleLocale, locale } = useLanguage()
@@ -23,12 +22,11 @@ export default function ForgotPasswordPage() {
     setError('')
     setLoading(true)
     try {
-      const supabase = createClient()
-      const origin = getSiteUrl()
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${origin}/auth/callback?next=/reset-password`,
-      })
-      if (resetError) throw new Error(resetError.message)
+      const result = await sendPasswordResetEmail(email)
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
       setIsSubmitted(true)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

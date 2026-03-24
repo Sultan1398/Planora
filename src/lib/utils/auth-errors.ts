@@ -1,6 +1,10 @@
 export function mapAuthError(message: string): string {
   const m = (message || '').toLowerCase()
 
+  if (m.includes('invalid email')) {
+    return 'يرجى إدخال بريد إلكتروني صالح.'
+  }
+
   if (m.includes('invalid login credentials')) {
     return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'
   }
