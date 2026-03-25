@@ -26,6 +26,11 @@ async function readSummaryValue(page: Page, title: RegExp): Promise<number> {
   return extractMoneyValue(await card.first().innerText())
 }
 
+/** عنصر قائمة الالتزامات حسب عنوان البطاقة (h3) */
+function obligationRow(page: Page, namePattern: RegExp) {
+  return page.locator('ul[role="list"] > li').filter({ has: page.locator('h3', { hasText: namePattern }) })
+}
+
 function dateMinusOneDay(isoDate: string): string {
   const d = new Date(`${isoDate}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() - 1)
@@ -35,8 +40,8 @@ function dateMinusOneDay(isoDate: string): string {
 /**
  * Intercepts Supabase REST/Auth calls used by Outflow page.
  * We switch between two mocked accounting scenarios:
- * - p4: obligations=1000, paid=500
- * - p5: carryover=500 + new=200 => obligations=700, paid=0
+ * - p4: التزام واحد "سداد فيزا" إجمالي 1000، مسدد في الفترة 500
+ * - p5: نفس الالتزام منطقياً كمرحّل (500 متبقي) + التزام جديد 200 => إجمالي الفترة 700، مسدد 0
  */
 function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
   let currentStart = '2026-04-01'
@@ -71,8 +76,8 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
             {
               id: 'obl-1',
               user_id: 'e2e-user',
-              name_ar: 'التزام أساسي',
-              name_en: 'Core obligation',
+              name_ar: 'سداد فيزا',
+              name_en: 'Visa payment',
               amount: 1000,
               paid_amount: 0,
               due_date: currentEnd,
@@ -84,8 +89,8 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
             {
               id: 'obl-old',
               user_id: 'e2e-user',
-              name_ar: 'التزام مرحّل',
-              name_en: 'Rolled obligation',
+              name_ar: 'سداد فيزا',
+              name_en: 'Visa payment',
               amount: 1000,
               paid_amount: 0,
               due_date: prevDay,
@@ -137,8 +142,8 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
               amount: 500,
               date: currentStart,
               obligation_id: 'obl-1',
-              name_ar: 'سداد',
-              name_en: 'Payment',
+              name_ar: 'سداد فيزا — سداد التزام',
+              name_en: 'Visa payment — obligation payment',
             },
           ]
         : [
@@ -146,8 +151,8 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
               amount: 500,
               date: prevDay,
               obligation_id: 'obl-old',
-              name_ar: 'سداد سابق',
-              name_en: 'Previous payment',
+              name_ar: 'سداد فيزا — سداد التزام',
+              name_en: 'Visa payment — obligation payment',
             },
           ]
 
@@ -174,6 +179,13 @@ test.describe('Obligations rollover summary', () => {
     await expect.poll(() => readSummaryValue(page, /إجمالي الالتزامات|Total obligations/i)).toBe(1000)
     await expect.poll(() => readSummaryValue(page, /إجمالي المسدد|Total paid/i)).toBe(500)
 
+    // Assert (Period 4): عنصر قائمة "سداد فيزا" — تقدم 50% ومبالغ الفترة
+    const visaRowP4 = obligationRow(page, /سداد فيزا|Visa payment/i)
+    await expect(visaRowP4).toBeVisible()
+    await expect(visaRowP4.getByText('50%')).toBeVisible()
+    await expect(visaRowP4.getByText(/الإجمالي:\s*1,?000\.00|Total:\s*1,?000\.00/)).toBeVisible()
+    await expect(visaRowP4.getByText(/المسدَّد:\s*500\.00|Paid:\s*500\.00/)).toBeVisible()
+
     // Act: switch mocked backend to period 5, then navigate to next period in UI
     scenario = 'p5'
     await page.getByRole('button', { name: /الفترة التالية|Next period/i }).click()
@@ -181,6 +193,14 @@ test.describe('Obligations rollover summary', () => {
     // Assert (Period 5): carryover 500 + new 200 => 700, and paid in this period = 0
     await expect.poll(() => readSummaryValue(page, /إجمالي الالتزامات|Total obligations/i)).toBe(700)
     await expect.poll(() => readSummaryValue(page, /إجمالي المسدد|Total paid/i)).toBe(0)
+
+    // Assert (Period 5): نفس الالتزام "سداد فيزا" — أساس الفترة 500، مسدد 0، تقدم 0%
+    const visaRowP5 = obligationRow(page, /سداد فيزا|Visa payment/i)
+    await expect.poll(async () => await visaRowP5.count()).toBeGreaterThanOrEqual(1)
+    await expect(visaRowP5.first()).toBeVisible()
+    await expect(visaRowP5.first().getByText('0%')).toBeVisible()
+    await expect(visaRowP5.first().getByText(/الإجمالي:\s*500\.00|Total:\s*500\.00/)).toBeVisible()
+    await expect(visaRowP5.first().getByText(/المسدَّد:\s*0\.00|Paid:\s*0\.00/)).toBeVisible()
   })
 })
 

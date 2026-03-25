@@ -13,7 +13,6 @@ import { formatGregorianDate } from '@/lib/period'
 import { computeAvailableCash } from '@/lib/cash-liquidity'
 import {
   obligationPaidAmount,
-  obligationRemaining,
   outflowIsObligationLinkedExpense,
   sumLegacyMarkerPayments,
 } from '@/lib/obligation-helpers'
@@ -46,6 +45,12 @@ type ObligationPaymentRow = {
   name_en?: string | null
 }
 
+type ObligationPeriodMetrics = {
+  periodTotal: number
+  periodPaid: number
+  periodRemaining: number
+}
+
 export default function OutflowPage() {
   const { t, locale } = useLanguage()
   const { periodKey, periodDates } = usePeriod()
@@ -68,7 +73,13 @@ export default function OutflowPage() {
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
 
-  const { totalObligations, totalPaid, totalRemaining } = useMemo(() => {
+  const {
+    totalObligations,
+    totalPaid,
+    totalRemaining,
+    visibleObligations,
+    obligationPeriodMetricsById,
+  } = useMemo(() => {
     const paymentsBeforeByObligation = new Map<string, number>()
     const paymentsInPeriodByObligation = new Map<string, number>()
 
@@ -95,35 +106,47 @@ export default function OutflowPage() {
       }
     }
 
-    let carryoverRemaining = 0
-    let newInPeriod = 0
+    const metricsById = new Map<string, ObligationPeriodMetrics>()
+    const list: Obligation[] = []
+    let periodTotal = 0
     let paidInPeriod = 0
 
     for (const row of obligations) {
       // لا نحسب التزامات لم تولد بعد نهاية الفترة المختارة
       if (row.date > end) continue
 
-      const total = Number(row.amount) || 0
+      const lifetimeTotal = Number(row.amount) || 0
       const paidBefore = paymentsBeforeByObligation.get(row.id) ?? 0
       const paidNow = paymentsInPeriodByObligation.get(row.id) ?? 0
 
-      const openingRemaining = Math.max(0, total - paidBefore)
-      if (row.date < start) {
-        carryoverRemaining += openingRemaining
-      } else {
-        newInPeriod += total
-      }
+      const isCarryover = row.date < start
+      // الرصيد الافتتاحي في بداية الفترة = المتبقي بعد سداد كل ما قبلها
+      const openingRemaining = Math.max(0, lifetimeTotal - paidBefore)
+      // أساس الفترة: المرحّل أو الالتزام الجديد داخل الفترة
+      const periodBase = isCarryover ? openingRemaining : lifetimeTotal
+      if (periodBase <= 0.0001) continue
 
-      // "المسدد" يخص فقط هذه الفترة وبحد أعلى الرصيد المتاح للفترة
-      paidInPeriod += Math.min(paidNow, openingRemaining)
+      // "المسدد" داخل الفترة فقط، وبحد أعلى أساس الالتزام لهذه الفترة
+      const periodPaid = Math.min(paidNow, periodBase)
+      const periodRemaining = Math.max(0, periodBase - periodPaid)
+
+      list.push(row)
+      metricsById.set(row.id, {
+        periodTotal: periodBase,
+        periodPaid,
+        periodRemaining,
+      })
+      periodTotal += periodBase
+      paidInPeriod += periodPaid
     }
 
-    const periodTotal = carryoverRemaining + newInPeriod
     const periodPaid = Math.min(periodTotal, paidInPeriod)
     return {
       totalObligations: periodTotal,
       totalPaid: periodPaid,
       totalRemaining: Math.max(0, periodTotal - periodPaid),
+      visibleObligations: list,
+      obligationPeriodMetricsById: metricsById,
     }
   }, [obligations, obligationPaymentOutflows, start, end])
 
@@ -131,16 +154,17 @@ export default function OutflowPage() {
     if (!isStillMounted()) return
     setLoading(true)
     setError('')
+    // تصفير البيانات مباشرة عند تغيير الفترة لمنع ثبات أرقام الفترة السابقة بصريًا
+    setOutflows([])
+    setObligations([])
+    setObligationPaymentOutflows([])
+    setAvailableCash(null)
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
     if (!isStillMounted()) return
     if (!user) {
-      setOutflows([])
-      setObligations([])
-      setObligationPaymentOutflows([])
-      setAvailableCash(null)
       setLoading(false)
       return
     }
@@ -449,7 +473,7 @@ export default function OutflowPage() {
               <div className="flex flex-col items-center gap-2 py-16 text-muted">
                 <Loader2 className="h-8 w-8 animate-spin text-brand" />
               </div>
-            ) : obligations.length === 0 ? (
+            ) : visibleObligations.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-white/80 px-6 py-14 text-center text-muted">
                 <p className="mb-4">{t('لا توجد التزامات مسجّلة', 'No obligations recorded')}</p>
                 <button
@@ -462,11 +486,11 @@ export default function OutflowPage() {
               </div>
             ) : (
               <ul className="flex flex-col gap-5 sm:gap-6" role="list">
-                {obligations.map((row) => {
-                  const total = Number(row.amount)
-                  const markerPaid = sumLegacyMarkerPayments(obligationPaymentOutflows, row.id)
-                  const paid = obligationPaidAmount(row, markerPaid)
-                  const rem = obligationRemaining(row, markerPaid)
+                {visibleObligations.map((row) => {
+                  const metrics = obligationPeriodMetricsById.get(row.id)
+                  const total = metrics?.periodTotal ?? Number(row.amount)
+                  const paid = metrics?.periodPaid ?? 0
+                  const rem = metrics?.periodRemaining ?? total
                   const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0
                   const isPaid = rem <= 0.0001
                   return (
