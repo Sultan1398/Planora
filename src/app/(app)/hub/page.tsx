@@ -10,16 +10,12 @@ import { getAppNavItem } from '@/config/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { dateToLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
-import {
-  obligationPaidAmount,
-  obligationRemaining,
-  outflowIsObligationLinkedExpense,
-  sumLegacyMarkerPayments,
-} from '@/lib/obligation-helpers'
+import { outflowIsObligationLinkedExpense } from '@/lib/obligation-helpers'
 import { cn } from '@/lib/utils'
 import { DashboardTabPanel } from '@/components/hub/DashboardTabPanel'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { StatisticsTabPanel } from '@/components/hub/StatisticsTabPanel'
+import { usePeriodObligations } from '@/hooks/usePeriodObligations'
 import {
   TrendingUp,
   ShoppingCart,
@@ -46,10 +42,6 @@ type HubTotals = {
   income: number
   generalExpensesTotal: number
   generalExpensesPaid: number
-  obligationPaymentsInPeriod: number
-  totalObligations: number
-  totalObligationsPaid: number
-  totalObligationsRemaining: number
   totalPaidFromWallet: number
   savingsNet: number
   investmentsNet: number
@@ -62,10 +54,6 @@ const emptyTotals: HubTotals = {
   income: 0,
   generalExpensesTotal: 0,
   generalExpensesPaid: 0,
-  obligationPaymentsInPeriod: 0,
-  totalObligations: 0,
-  totalObligationsPaid: 0,
-  totalObligationsRemaining: 0,
   totalPaidFromWallet: 0,
   savingsNet: 0,
   investmentsNet: 0,
@@ -98,6 +86,16 @@ function HubPageInner() {
   const [totals, setTotals] = useState<HubTotals>(emptyTotals)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const start = dateToLocalISODate(periodDates.start)
+  const end = dateToLocalISODate(periodDates.end)
+  const {
+    summary: obligationsSummary,
+    loading: obligationsLoading,
+    error: obligationsError,
+  } = usePeriodObligations({
+    periodStart: start,
+    periodEnd: end,
+  })
 
   const loadHub = useCallback(async (isStillMounted: () => boolean = () => true) => {
     if (!isStillMounted()) return
@@ -114,10 +112,7 @@ function HubPageInner() {
       return
     }
 
-    const start = dateToLocalISODate(periodDates.start)
-    const end = dateToLocalISODate(periodDates.end)
-
-    const [inflowsRes, outflowsRes, savingsTxRes, investmentsRes, invWalletTxRes, obligationsRes, markerOutflowsRes] = await Promise.all([
+    const [inflowsRes, outflowsRes, savingsTxRes, investmentsRes, invWalletTxRes] = await Promise.all([
       supabase.from('inflows').select('amount').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase
         .from('outflows')
@@ -134,9 +129,6 @@ function HubPageInner() {
         .gte('date', start)
         .lte('date', end)
         .in('type', ['deposit', 'withdrawal'] as const),
-      // ملاحظة توافق: لا نطلب paid_amount صراحة حتى لا ينكسر المخطط القديم (001)
-      supabase.from('obligations').select('*').eq('user_id', user.id),
-      supabase.from('outflows').select('amount, name_ar, name_en').eq('user_id', user.id),
     ])
 
     if (!isStillMounted()) return
@@ -146,9 +138,7 @@ function HubPageInner() {
       outflowsRes.error ||
       savingsTxRes.error ||
       investmentsRes.error ||
-      invWalletTxRes.error ||
-      obligationsRes.error ||
-      markerOutflowsRes.error
+      invWalletTxRes.error
     if (firstErr) {
       if (!isStillMounted()) return
       setError(firstErr.message)
@@ -171,24 +161,11 @@ function HubPageInner() {
       status: string
       exit_amount: number | null
     }[]
-    const obligationRows = (obligationsRes.data ?? []) as {
-      id: string
-      amount: number
-      paid_amount?: number | null
-      status?: 'paid' | 'pending' | null
-    }[]
-    const markerRows = (markerOutflowsRes.data ?? []) as Array<{
-      amount: number
-      name_ar?: string | null
-      name_en?: string | null
-    }>
-
     let income = 0
     for (const r of inflowRows) income += Number(r.amount)
 
     let generalExpensesTotal = 0
     let generalExpensesPaid = 0
-    let obligationPaymentsInPeriod = 0
     let totalPaidFromWallet = 0
     for (const r of outflowRows) {
       const a = Number(r.amount)
@@ -196,8 +173,7 @@ function HubPageInner() {
       if (!isObligation) generalExpensesTotal += a
       if (r.status === 'paid') {
         totalPaidFromWallet += a
-        if (isObligation) obligationPaymentsInPeriod += a
-        else generalExpensesPaid += a
+        if (!isObligation) generalExpensesPaid += a
       }
     }
 
@@ -227,29 +203,11 @@ function HubPageInner() {
       }
     }
 
-    let totalObligations = 0
-    let totalObligationsPaid = 0
-    for (const r of obligationRows) {
-      const amount = Number(r.amount)
-      const markerPaid = sumLegacyMarkerPayments(markerRows, r.id)
-      const paid = Math.max(0, Math.min(amount, obligationPaidAmount(r, markerPaid)))
-      totalObligations += amount
-      totalObligationsPaid += paid
-    }
-    const totalObligationsRemaining = obligationRows.reduce((sum, r) => {
-      const markerPaid = sumLegacyMarkerPayments(markerRows, r.id)
-      return sum + obligationRemaining(r, markerPaid)
-    }, 0)
-
     if (!isStillMounted()) return
     setTotals({
       income,
       generalExpensesTotal,
       generalExpensesPaid,
-      obligationPaymentsInPeriod,
-      totalObligations,
-      totalObligationsPaid,
-      totalObligationsRemaining,
       totalPaidFromWallet: totalPaidFromWallet,
       savingsNet,
       investmentsNet,
@@ -258,7 +216,7 @@ function HubPageInner() {
       openDeals,
     })
     setLoading(false)
-  }, [periodDates.start, periodDates.end])
+  }, [start, end])
 
   useEffect(() => {
     let isMounted = true
@@ -277,7 +235,9 @@ function HubPageInner() {
     [totals.income, totals.totalPaidFromWallet, totals.savingsNet, totals.investmentsNet]
   )
 
-  const fmt = (n: number) => (loading ? '—' : formatMoney(n, locale))
+  const pageLoading = loading || obligationsLoading
+  const mergedError = [error, obligationsError].filter(Boolean).join(' · ')
+  const fmt = (n: number) => (pageLoading ? '—' : formatMoney(n, locale))
 
   const pageSubtitle = useMemo(() => {
     if (activeTab === 'analytics') {
@@ -362,9 +322,9 @@ function HubPageInner() {
           aria-labelledby="hub-tab-overview"
           tabIndex={0}
         >
-          {error ? (
+          {mergedError ? (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">
-              {error}
+              {mergedError}
             </div>
           ) : null}
 
@@ -432,7 +392,7 @@ function HubPageInner() {
                     <FileText className="h-5 w-5 text-slate-700" />
                   </div>
                   <p className="text-2xl font-bold tabular-nums text-slate-800" dir="ltr">
-                    {fmt(totals.totalObligations)}
+                    {fmt(obligationsSummary.totalObligations)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -441,7 +401,7 @@ function HubPageInner() {
                     <CheckCircle className="h-5 w-5 text-emerald-500" />
                   </div>
                   <p className="text-2xl font-bold tabular-nums text-emerald-500" dir="ltr">
-                    {fmt(totals.totalObligationsPaid)}
+                    {fmt(obligationsSummary.totalPaid)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -450,7 +410,7 @@ function HubPageInner() {
                     <AlertCircle className="h-5 w-5 text-orange-500" />
                   </div>
                   <p className="text-2xl font-bold tabular-nums text-orange-500" dir="ltr">
-                    {fmt(totals.totalObligationsRemaining)}
+                    {fmt(obligationsSummary.totalRemaining)}
                   </p>
                 </div>
               </div>
