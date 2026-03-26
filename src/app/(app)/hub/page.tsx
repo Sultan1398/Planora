@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { dateToLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
 import { outflowIsObligationLinkedExpense } from '@/lib/obligation-helpers'
+import { getPeriodDates, getPrevPeriodKey } from '@/lib/period'
 import { cn } from '@/lib/utils'
 import { DashboardTabPanel } from '@/components/hub/DashboardTabPanel'
 import { NotificationBell } from '@/components/layout/NotificationBell'
@@ -40,31 +41,39 @@ function parseHubTab(tab: string | null): HubTabId {
 
 type HubTotals = {
   income: number
+  incomeRolledOver: number
+  incomeWithRollover: number
   generalExpensesTotal: number
   generalExpensesPaid: number
   totalPaidFromWallet: number
   savingsNet: number
+  savingsCumulativeDeposits: number
   investmentsNet: number
   investedOpen: number
   investmentNetPL: number
   openDeals: number
+  cashOnHand: number
 }
 
 const emptyTotals: HubTotals = {
   income: 0,
+  incomeRolledOver: 0,
+  incomeWithRollover: 0,
   generalExpensesTotal: 0,
   generalExpensesPaid: 0,
   totalPaidFromWallet: 0,
   savingsNet: 0,
+  savingsCumulativeDeposits: 0,
   investmentsNet: 0,
   investedOpen: 0,
   investmentNetPL: 0,
   openDeals: 0,
+  cashOnHand: 0,
 }
 
 function HubPageInner() {
   const { t, locale } = useLanguage()
-  const { periodKey, periodDates } = usePeriod()
+  const { periodKey, periodDates, startDay } = usePeriod()
   const searchParams = useSearchParams()
   const router = useRouter()
   const activeTab = parseHubTab(searchParams.get('tab'))
@@ -88,6 +97,11 @@ function HubPageInner() {
   const [error, setError] = useState('')
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
+
+  const prevPeriodKey = getPrevPeriodKey(periodKey)
+  const prevPeriodDates = getPeriodDates(prevPeriodKey, startDay)
+  const prevStart = dateToLocalISODate(prevPeriodDates.start)
+  const prevEnd = dateToLocalISODate(prevPeriodDates.end)
   const {
     summary: obligationsSummary,
     loading: obligationsLoading,
@@ -112,7 +126,18 @@ function HubPageInner() {
       return
     }
 
-    const [inflowsRes, outflowsRes, savingsTxRes, investmentsRes, invWalletTxRes] = await Promise.all([
+    const [
+      inflowsRes,
+      outflowsRes,
+      savingsTxRes,
+      investmentsRes,
+      invWalletTxRes,
+      inflowsPrevRes,
+      outflowsPrevRes,
+      savingsTxPrevRes,
+      invWalletTxPrevRes,
+      savingsDepositsCumRes,
+    ] = await Promise.all([
       supabase.from('inflows').select('amount').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase
         .from('outflows')
@@ -120,7 +145,12 @@ function HubPageInner() {
         .eq('user_id', user.id)
         .gte('date', start)
         .lte('date', end),
-      supabase.from('savings_transactions').select('amount, type').eq('user_id', user.id).gte('date', start).lte('date', end),
+      supabase
+        .from('savings_transactions')
+        .select('amount, type')
+        .eq('user_id', user.id)
+        .gte('date', start)
+        .lte('date', end),
       supabase.from('investments').select('entry_amount, status, exit_amount').eq('user_id', user.id),
       supabase
         .from('investment_wallet_transactions')
@@ -129,6 +159,32 @@ function HubPageInner() {
         .gte('date', start)
         .lte('date', end)
         .in('type', ['deposit', 'withdrawal'] as const),
+      supabase.from('inflows').select('amount').eq('user_id', user.id).gte('date', prevStart).lte('date', prevEnd),
+      supabase
+        .from('outflows')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', prevStart)
+        .lte('date', prevEnd),
+      supabase
+        .from('savings_transactions')
+        .select('amount, type')
+        .eq('user_id', user.id)
+        .gte('date', prevStart)
+        .lte('date', prevEnd),
+      supabase
+        .from('investment_wallet_transactions')
+        .select('amount, type')
+        .eq('user_id', user.id)
+        .gte('date', prevStart)
+        .lte('date', prevEnd)
+        .in('type', ['deposit', 'withdrawal'] as const),
+      supabase
+        .from('savings_transactions')
+        .select('amount')
+        .eq('user_id', user.id)
+        .eq('type', 'deposit')
+        .lte('date', end),
     ])
 
     if (!isStillMounted()) return
@@ -138,7 +194,12 @@ function HubPageInner() {
       outflowsRes.error ||
       savingsTxRes.error ||
       investmentsRes.error ||
-      invWalletTxRes.error
+      invWalletTxRes.error ||
+      inflowsPrevRes.error ||
+      outflowsPrevRes.error ||
+      savingsTxPrevRes.error ||
+      invWalletTxPrevRes.error ||
+      savingsDepositsCumRes.error
     if (firstErr) {
       if (!isStillMounted()) return
       setError(firstErr.message)
@@ -161,6 +222,15 @@ function HubPageInner() {
       status: string
       exit_amount: number | null
     }[]
+
+    const inflowPrevRows = (inflowsPrevRes.data ?? []) as { amount: number }[]
+    const outflowPrevRows = (outflowsPrevRes.data ?? []) as {
+      amount: number
+      status: string
+    }[]
+    const savingsPrevRows = (savingsTxPrevRes.data ?? []) as { amount: number; type: string }[]
+    const invWalletPrevRows = (invWalletTxPrevRes.data ?? []) as Array<{ amount: number; type: string }>
+    const savingsDepositsCumRows = (savingsDepositsCumRes.data ?? []) as Array<{ amount: number }>
     let income = 0
     for (const r of inflowRows) income += Number(r.amount)
 
@@ -191,6 +261,39 @@ function HubPageInner() {
       else investmentsNet -= a
     }
 
+    // ===== Rollover / cumulative: previous period + savings deposits up to end =====
+    let incomePrev = 0
+    for (const r of inflowPrevRows) incomePrev += Number(r.amount)
+
+    // إجمالي ما تم صرفه في الفترة السابقة = المدفوعات من المحفظة (مصروفات + سداد التزامات) + صافي المدخرات في تلك الفترة
+    let totalPaidFromWalletPrev = 0
+    for (const r of outflowPrevRows) {
+      if (r.status === 'paid') totalPaidFromWalletPrev += Number(r.amount)
+    }
+
+    let savingsNetPrev = 0
+    for (const r of savingsPrevRows) {
+      const a = Number(r.amount)
+      if (r.type === 'deposit') savingsNetPrev += a
+      else savingsNetPrev -= a
+    }
+
+    let investmentsNetPrev = 0
+    for (const r of invWalletPrevRows) {
+      const a = Number(r.amount)
+      if (r.type === 'deposit') investmentsNetPrev += a
+      else investmentsNetPrev -= a
+    }
+
+    // بطاقة "الدخل": ديناميكياً وفق طلبك (بدون استثمارات في معادلة الترحيل نفسها)
+    const rolledOverBalance = incomePrev - totalPaidFromWalletPrev - savingsNetPrev
+    const incomeRolledOver = Math.max(0, rolledOverBalance)
+    const incomeWithRollover = income + incomeRolledOver
+
+    // بطاقة "المدخرات": تراكمية (ودائع فقط) حتى نهاية الفترة المحددة
+    let savingsCumulativeDeposits = 0
+    for (const r of savingsDepositsCumRows) savingsCumulativeDeposits += Number(r.amount)
+
     let investedOpen = 0
     let investmentNetPL = 0
     let openDeals = 0
@@ -204,19 +307,28 @@ function HubPageInner() {
     }
 
     if (!isStillMounted()) return
+    // نقد متاح مع دورة محاسبية كاملة (يتضمن ترحيل كامل بما فيه استثمارات النظام كما في معادلة الـ cashOnHand الحالية)
+    const cashOnHandPrev = incomePrev - totalPaidFromWalletPrev - savingsNetPrev - investmentsNetPrev
+    const cashOnHandCurrent = income - totalPaidFromWallet - savingsNet - investmentsNet
+    const cashOnHand = cashOnHandPrev + cashOnHandCurrent
+
     setTotals({
       income,
+      incomeRolledOver,
+      incomeWithRollover,
       generalExpensesTotal,
       generalExpensesPaid,
       totalPaidFromWallet: totalPaidFromWallet,
       savingsNet,
+      savingsCumulativeDeposits,
       investmentsNet,
       investedOpen,
       investmentNetPL,
       openDeals,
+      cashOnHand,
     })
     setLoading(false)
-  }, [start, end])
+  }, [start, end, prevStart, prevEnd, periodKey])
 
   useEffect(() => {
     let isMounted = true
@@ -229,11 +341,6 @@ function HubPageInner() {
       isMounted = false
     }
   }, [loadHub, periodKey])
-
-  const cashOnHand = useMemo(
-    () => totals.income - totals.totalPaidFromWallet - totals.savingsNet - totals.investmentsNet,
-    [totals.income, totals.totalPaidFromWallet, totals.savingsNet, totals.investmentsNet]
-  )
 
   const pageLoading = loading || obligationsLoading
   const mergedError = [error, obligationsError].filter(Boolean).join(' · ')
@@ -334,7 +441,7 @@ function HubPageInner() {
 
           <div className="relative mb-6 overflow-hidden rounded-2xl bg-brand p-4 text-white shadow-sm lg:p-6">
             <p className="mb-2 text-sm font-medium text-white/80">{t('النقد المتاح', 'Cash on Hand')}</p>
-            <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">{fmt(cashOnHand)}</p>
+            <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">{fmt(totals.cashOnHand)}</p>
             <p className="mt-3 text-xs font-normal leading-relaxed text-white/70">
               {t('الدخل − إجمالي المدفوع من المحفظة في الفترة', 'Income − total paid from wallet this period')}
             </p>
@@ -348,8 +455,18 @@ function HubPageInner() {
                   <TrendingUp className="h-5 w-5 text-emerald-500" />
                 </div>
                 <p className="text-2xl font-bold tabular-nums text-emerald-500" dir="ltr">
-                  {fmt(totals.income)}
+                  {fmt(totals.incomeWithRollover)}
                 </p>
+                {totals.incomeRolledOver > 0 ? (
+                  <p className="mt-2 text-xs text-emerald-500/80">
+                    {t('يتضمن {amount} ريال مرحّلة من الفترة السابقة', 'Includes {amount} carried over from the previous period').replace(
+                      '{amount}',
+                      formatMoney(totals.incomeRolledOver, locale)
+                    )}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-emerald-500/60">{t('لا توجد قيمة مرحّلة', 'No carried value')}</p>
+                )}
               </div>
               <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
                 <div className="mb-2 flex items-center justify-between">
@@ -366,7 +483,7 @@ function HubPageInner() {
                   <Landmark className="h-5 w-5 text-blue-500" />
                 </div>
                 <p className="text-2xl font-bold tabular-nums text-blue-500" dir="ltr">
-                  {fmt(totals.savingsNet)}
+                  {fmt(totals.savingsCumulativeDeposits)}
                 </p>
               </div>
             </div>
