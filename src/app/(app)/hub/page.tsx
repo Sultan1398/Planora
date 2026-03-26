@@ -104,6 +104,7 @@ function HubPageInner() {
     incomePrev: number
     totalPaidFromWalletPrev: number
     savingsNetPrev: number
+    investmentsNetPrev: number
   } | null>(null)
 
   const prevPeriodKey = getPrevPeriodKey(periodKey)
@@ -309,6 +310,7 @@ function HubPageInner() {
       incomePrev,
       totalPaidFromWalletPrev,
       savingsNetPrev,
+      investmentsNetPrev,
     })
 
     // مبدئياً؛ سيتم تحديث القيم بدقة عندما ينتهي hook من حسابها.

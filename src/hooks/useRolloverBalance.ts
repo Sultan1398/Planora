@@ -24,6 +24,7 @@ export function useRolloverBalance({
     incomePrev: number
     totalPaidFromWalletPrev: number
     savingsNetPrev: number
+    investmentsNetPrev: number
   }
 }) {
   const [loading, setLoading] = useState(true)
@@ -39,7 +40,10 @@ export function useRolloverBalance({
 
       if (previousComponents) {
         const rolledRaw =
-          previousComponents.incomePrev - previousComponents.totalPaidFromWalletPrev - previousComponents.savingsNetPrev
+          previousComponents.incomePrev -
+          previousComponents.totalPaidFromWalletPrev -
+          previousComponents.savingsNetPrev -
+          previousComponents.investmentsNetPrev
         const rolled = Math.max(0, rolledRaw)
         setRolledOverBalance(rolled)
         setRolledOverBalanceRaw(rolledRaw)
@@ -71,7 +75,7 @@ export function useRolloverBalance({
       const prevStart = dateToLocalISODate(prevPeriodDates.start)
       const prevEnd = dateToLocalISODate(prevPeriodDates.end)
 
-      const [inflowsPrevRes, outflowsPrevRes, savingsPrevRes] = await Promise.all([
+      const [inflowsPrevRes, outflowsPrevRes, savingsPrevRes, invWalletPrevRes] = await Promise.all([
         supabase
           .from('inflows')
           .select('amount')
@@ -90,12 +94,19 @@ export function useRolloverBalance({
           .eq('user_id', uid)
           .gte('date', prevStart)
           .lte('date', prevEnd),
+        supabase
+          .from('investment_wallet_transactions')
+          .select('amount, type')
+          .eq('user_id', uid)
+          .gte('date', prevStart)
+          .lte('date', prevEnd)
+          .in('type', ['deposit', 'withdrawal'] as const),
       ])
 
       if (!isStillMounted()) return
 
       const firstErr =
-        inflowsPrevRes.error || outflowsPrevRes.error || savingsPrevRes.error
+        inflowsPrevRes.error || outflowsPrevRes.error || savingsPrevRes.error || invWalletPrevRes.error
       if (firstErr) {
         setError(firstErr.message)
         setRolledOverBalance(0)
@@ -107,6 +118,7 @@ export function useRolloverBalance({
       const inflowPrev = (inflowsPrevRes.data ?? []) as Array<{ amount: number }>
       const outflowPrev = (outflowsPrevRes.data ?? []) as Array<{ amount: number; status: string }>
       const savingsPrev = (savingsPrevRes.data ?? []) as Array<{ amount: number; type: string }>
+      const invWalletPrev = (invWalletPrevRes.data ?? []) as Array<{ amount: number; type: string }>
 
       let incomePrev = 0
       for (const r of inflowPrev) incomePrev += Number(r.amount)
@@ -126,7 +138,15 @@ export function useRolloverBalance({
         else savingsNetPrev -= a
       }
 
-      const rolledRaw = incomePrev - totalPaidFromWalletPrev - savingsNetPrev
+      let investmentsNetPrev = 0
+      for (const r of invWalletPrev) {
+        const a = Number(r.amount)
+        if (r.type === 'deposit') investmentsNetPrev += a
+        else investmentsNetPrev -= a
+      }
+
+      const rolledRaw =
+        incomePrev - totalPaidFromWalletPrev - savingsNetPrev - investmentsNetPrev
       const rolled = Math.max(0, rolledRaw)
 
       setRolledOverBalance(rolled)
