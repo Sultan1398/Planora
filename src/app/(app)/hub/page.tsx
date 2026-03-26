@@ -17,6 +17,7 @@ import { DashboardTabPanel } from '@/components/hub/DashboardTabPanel'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { StatisticsTabPanel } from '@/components/hub/StatisticsTabPanel'
 import { usePeriodObligations } from '@/hooks/usePeriodObligations'
+import { useRolloverBalance } from '@/hooks/useRolloverBalance'
 import {
   TrendingUp,
   ShoppingCart,
@@ -98,6 +99,13 @@ function HubPageInner() {
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
 
+  // نُمرِّر مكونات الفترة السابقة المحسوبة في loadHub للـ hook ليتولى فقط حساب قيمة "الدخل المرحّل" بشكل موحد.
+  const [previousComponentsForRollover, setPreviousComponentsForRollover] = useState<{
+    incomePrev: number
+    totalPaidFromWalletPrev: number
+    savingsNetPrev: number
+  } | null>(null)
+
   const prevPeriodKey = getPrevPeriodKey(periodKey)
   const prevPeriodDates = getPeriodDates(prevPeriodKey, startDay)
   const prevStart = dateToLocalISODate(prevPeriodDates.start)
@@ -109,6 +117,17 @@ function HubPageInner() {
   } = usePeriodObligations({
     periodStart: start,
     periodEnd: end,
+  })
+
+  const {
+    rolledOverBalance,
+    loading: rolloverLoading,
+    error: rolloverError,
+  } = useRolloverBalance({
+    periodKey,
+    periodDates,
+    startDay,
+    previousComponents: previousComponentsForRollover ?? undefined,
   })
 
   const loadHub = useCallback(async (isStillMounted: () => boolean = () => true) => {
@@ -285,10 +304,16 @@ function HubPageInner() {
       else investmentsNetPrev -= a
     }
 
-    // بطاقة "الدخل": ديناميكياً وفق طلبك (بدون استثمارات في معادلة الترحيل نفسها)
-    const rolledOverBalance = incomePrev - totalPaidFromWalletPrev - savingsNetPrev
-    const incomeRolledOver = Math.max(0, rolledOverBalance)
-    const incomeWithRollover = income + incomeRolledOver
+    // نوفّر مكونات الفترة السابقة للـ hook ليتولى حساب "الدخل المرحّل" بشكل موحّد.
+    setPreviousComponentsForRollover({
+      incomePrev,
+      totalPaidFromWalletPrev,
+      savingsNetPrev,
+    })
+
+    // مبدئياً؛ سيتم تحديث القيم بدقة عندما ينتهي hook من حسابها.
+    const incomeRolledOver = 0
+    const incomeWithRollover = income
 
     // بطاقة "المدخرات": تراكمية (ودائع فقط) حتى نهاية الفترة المحددة
     let savingsCumulativeDeposits = 0
@@ -330,6 +355,16 @@ function HubPageInner() {
     setLoading(false)
   }, [start, end, prevStart, prevEnd, periodKey])
 
+  // بعد حساب قيمة "الدخل المرحّل" عبر الـ hook، حدّث قيم بطاقات نظرة عامة.
+  useEffect(() => {
+    if (!previousComponentsForRollover) return
+    setTotals((prev) => ({
+      ...prev,
+      incomeRolledOver: rolledOverBalance,
+      incomeWithRollover: prev.income + rolledOverBalance,
+    }))
+  }, [rolledOverBalance, previousComponentsForRollover])
+
   useEffect(() => {
     let isMounted = true
     const isStillMounted = () => isMounted
@@ -342,8 +377,8 @@ function HubPageInner() {
     }
   }, [loadHub, periodKey])
 
-  const pageLoading = loading || obligationsLoading
-  const mergedError = [error, obligationsError].filter(Boolean).join(' · ')
+  const pageLoading = loading || obligationsLoading || rolloverLoading
+  const mergedError = [error, obligationsError, rolloverError].filter(Boolean).join(' · ')
   const fmt = (n: number) => (pageLoading ? '—' : formatMoney(n, locale))
 
   const pageSubtitle = useMemo(() => {

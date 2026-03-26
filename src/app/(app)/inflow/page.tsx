@@ -14,18 +14,29 @@ import type { Inflow } from '@/types/database'
 import { InflowFormModal } from '@/components/inflow/InflowFormModal'
 import { Pencil, Trash2, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useRolloverBalance } from '@/hooks/useRolloverBalance'
 
 const inflowNav = getAppNavItem('/inflow')
 
 export default function InflowPage() {
   const { t, locale } = useLanguage()
-  const { periodKey, periodDates } = usePeriod()
+  const { periodKey, periodDates, startDay } = usePeriod()
   const [rows, setRows] = useState<Inflow[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Inflow | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const {
+    rolledOverBalance,
+    loading: rolloverLoading,
+    error: rolloverError,
+  } = useRolloverBalance({
+    periodKey,
+    periodDates,
+    startDay,
+  })
 
   const loadInflows = useCallback(async (isStillMounted: () => boolean = () => true) => {
     if (!isStillMounted()) return
@@ -130,8 +141,18 @@ export default function InflowPage() {
         <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-muted">{t('إجمالي الدخل', 'Total income')}</p>
           <p className="mt-1 text-2xl font-bold text-success tabular-nums">
-            {loading ? '—' : formatMoney(totals.total, locale)}
+            {loading || rolloverLoading ? '—' : formatMoney(totals.total + rolledOverBalance, locale)}
           </p>
+          {loading || rolloverLoading ? null : rolledOverBalance > 0 ? (
+            <p className="mt-2 text-xs text-emerald-600/80">
+              {t('يتضمن {amount} ريال مرحّلة من الشهر السابق', 'Includes {amount} carried over from the previous period').replace(
+                '{amount}',
+                formatMoney(rolledOverBalance, locale)
+              )}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-emerald-600/60">{t('لا توجد قيمة مرحّلة', 'No carried value')}</p>
+          )}
         </div>
         <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
           <p className="text-xs font-medium text-muted">{t('دخل ثابت', 'Fixed')}</p>
@@ -147,9 +168,9 @@ export default function InflowPage() {
         </div>
       </div>
 
-      {fetchError ? (
+      {fetchError || rolloverError ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">
-          {fetchError}
+          {[fetchError, rolloverError].filter(Boolean).join(' · ')}
         </div>
       ) : null}
 
