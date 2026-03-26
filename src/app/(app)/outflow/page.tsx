@@ -10,7 +10,6 @@ import { createClient } from '@/lib/supabase/client'
 import { dateToLocalISODate, parseLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
 import { formatGregorianDate } from '@/lib/period'
-import { computeAvailableCash } from '@/lib/cash-liquidity'
 import {
   obligationPaidAmount,
   outflowIsObligationLinkedExpense,
@@ -18,6 +17,7 @@ import {
 } from '@/lib/obligation-helpers'
 import type { Outflow, Obligation } from '@/types/database'
 import { usePeriodObligations } from '@/hooks/usePeriodObligations'
+import { useAvailableCash } from '@/hooks/useAvailableCash'
 import { GeneralOutflowModal } from '@/components/outflow/GeneralOutflowModal'
 import { ObligationFormModal } from '@/components/outflow/ObligationFormModal'
 import { ObligationPayModal } from '@/components/outflow/ObligationPayModal'
@@ -40,12 +40,11 @@ type Tab = 'general' | 'obligations'
 
 export default function OutflowPage() {
   const { t, locale } = useLanguage()
-  const { periodKey, periodDates } = usePeriod()
+  const { periodKey, periodDates, startDay } = usePeriod()
   const [tab, setTab] = useState<Tab>('general')
   const [outflows, setOutflows] = useState<Outflow[]>([])
   const [generalLoading, setGeneralLoading] = useState(true)
   const [generalError, setGeneralError] = useState('')
-  const [availableCash, setAvailableCash] = useState<number | null>(null)
 
   const [generalModal, setGeneralModal] = useState(false)
   const [editingOutflow, setEditingOutflow] = useState<Outflow | null>(null)
@@ -70,12 +69,18 @@ export default function OutflowPage() {
     periodEnd: end,
   })
 
+  const {
+    availableCash,
+    loading: cashLoading,
+    error: cashError,
+    reload: reloadCash,
+  } = useAvailableCash({ periodKey, periodDates, startDay })
+
   const reloadGeneral = useCallback(async (isStillMounted: () => boolean = () => true) => {
     if (!isStillMounted()) return
     setGeneralLoading(true)
     setGeneralError('')
     setOutflows([])
-    setAvailableCash(null)
     const supabase = createClient()
     const {
       data: { user },
@@ -107,15 +112,6 @@ export default function OutflowPage() {
       setOutflows(raw.filter((r) => !outflowIsObligationLinkedExpense(r as Outflow)))
     }
 
-    try {
-      const cash = await computeAvailableCash(supabase, user.id, start, end)
-      if (!isStillMounted()) return
-      setAvailableCash(cash)
-    } catch {
-      if (!isStillMounted()) return
-      setAvailableCash(null)
-    }
-
     if (!isStillMounted()) return
     setGeneralLoading(false)
   }, [start, end])
@@ -123,10 +119,11 @@ export default function OutflowPage() {
   const reloadAll = useCallback(() => {
     void reloadGeneral()
     void reloadObligations()
-  }, [reloadGeneral, reloadObligations])
+    void reloadCash()
+  }, [reloadGeneral, reloadObligations, reloadCash])
 
-  const loading = generalLoading || obligationsLoading
-  const error = [generalError, obligationsError].filter(Boolean).join(' · ')
+  const loading = generalLoading || obligationsLoading || cashLoading
+  const error = [generalError, obligationsError, cashError].filter(Boolean).join(' · ')
 
   useEffect(() => {
     let isMounted = true

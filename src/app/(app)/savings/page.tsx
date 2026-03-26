@@ -10,23 +10,22 @@ import { createClient } from '@/lib/supabase/client'
 import { dateToLocalISODate, parseLocalISODate } from '@/lib/date-local'
 import { formatGregorianDate } from '@/lib/period'
 import { formatMoney } from '@/lib/format-money'
-import { computeAvailableCash } from '@/lib/cash-liquidity'
 import { deleteSavingsGoalWithOrderedTxRemoval } from '@/lib/savings-delete-goal'
 import type { SavingsGoal } from '@/types/database'
 import { SavingsGoalFormModal } from '@/components/savings/SavingsGoalFormModal'
 import { SavingsTransactionModal } from '@/components/savings/SavingsTransactionModal'
 import { PiggyBank, Pencil, Trash2, Loader2, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAvailableCash } from '@/hooks/useAvailableCash'
 
 const savingsNav = getAppNavItem('/savings')
 
 export default function SavingsPage() {
   const { t, locale } = useLanguage()
-  const { periodKey, periodDates } = usePeriod()
+  const { periodKey, periodDates, startDay } = usePeriod()
   const [goals, setGoals] = useState<SavingsGoal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [availableCash, setAvailableCash] = useState<number | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
@@ -39,6 +38,12 @@ export default function SavingsPage() {
   const start = dateToLocalISODate(periodDates.start)
   const end = dateToLocalISODate(periodDates.end)
 
+  const { availableCash, loading: cashLoading, error: cashError, reload: reloadCash } = useAvailableCash({
+    periodKey,
+    periodDates,
+    startDay,
+  })
+
   const reload = useCallback(async (isStillMounted: () => boolean = () => true) => {
     if (!isStillMounted()) return
     setLoading(true)
@@ -50,15 +55,15 @@ export default function SavingsPage() {
     if (!isStillMounted()) return
     if (!user) {
       setGoals([])
-      setAvailableCash(null)
       setLoading(false)
       return
     }
 
-    const [gRes, cash] = await Promise.all([
-      supabase.from('savings_goals').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      computeAvailableCash(supabase, user.id, start, end).catch(() => null),
-    ])
+    const gRes = await supabase
+      .from('savings_goals')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
 
     if (!isStillMounted()) return
     if (gRes.error) {
@@ -67,9 +72,11 @@ export default function SavingsPage() {
     } else {
       setGoals((gRes.data as SavingsGoal[] | null) ?? [])
     }
-    setAvailableCash(cash)
     setLoading(false)
-  }, [start, end])
+
+    // تحديث شريط السيولة بعد أي تغيير في المدخرات
+    void reloadCash()
+  }, [start, end, reloadCash])
 
   useEffect(() => {
     let isMounted = true
@@ -143,7 +150,7 @@ export default function SavingsPage() {
         }
       />
 
-      {!loading && availableCash != null ? (
+      {!loading && !cashLoading && availableCash != null ? (
         <div className="mb-4 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-muted">{t('السيولة المتاحة في الفترة', 'Available liquidity this period')}</span>
           <span className="text-lg font-bold text-brand tabular-nums" dir="ltr">
@@ -152,9 +159,9 @@ export default function SavingsPage() {
         </div>
       ) : null}
 
-      {error ? (
+      {error || cashError ? (
         <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">
-          {error}
+          {[error, cashError].filter(Boolean).join(' · ')}
         </div>
       ) : null}
 

@@ -44,15 +44,28 @@ function dateMinusOneDay(isoDate: string): string {
  * - p5: نفس الالتزام منطقياً كمرحّل (500 متبقي) + التزام جديد 200 => إجمالي الفترة 700، مسدد 0
  */
 function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
-  let currentStart = '2026-04-01'
-  let currentEnd = '2026-04-30'
+  // When we see both gte/lte for a period, we store the mapping:
+  // periodEnd -> periodStart, so later requests that only have lte can still use the correct start.
+  const startByEnd = new Map<string, string>()
 
-  const capturePeriodBounds = (url: URL) => {
+  const extractPeriodBounds = (url: URL) => {
     const allDateFilters = url.searchParams.getAll('date')
     const gte = allDateFilters.find((v) => v.startsWith('gte.'))
     const lte = allDateFilters.find((v) => v.startsWith('lte.'))
-    if (gte) currentStart = gte.slice(4)
-    if (lte) currentEnd = lte.slice(4)
+    const end = lte ? lte.slice(4) : null
+    const start = gte ? gte.slice(4) : end ? startByEnd.get(end) ?? null : null
+
+    if (gte && end) {
+      startByEnd.set(end, gte.slice(4))
+    }
+
+    // الفallback (فقط إذا لم نتمكن من استنتاج start من أي request سابق)
+    const inferredStart = end ? `${end.slice(0, 7)}-01` : null
+
+    return {
+      start: start ?? inferredStart ?? '2026-04-01',
+      end: end ?? '2026-04-30',
+    }
   }
 
   page.route('**/auth/v1/user**', async (route: Route) => {
@@ -69,7 +82,9 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
 
   page.route('**/rest/v1/obligations**', async (route: Route) => {
     const scenario = getScenario()
-    const prevDay = dateMinusOneDay(currentStart)
+    const reqUrl = new URL(route.request().url())
+    const { start, end } = extractPeriodBounds(reqUrl)
+    const prevDay = dateMinusOneDay(start)
     const obligations =
       scenario === 'p4'
         ? [
@@ -80,9 +95,9 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
               name_en: 'Visa payment',
               amount: 1000,
               paid_amount: 0,
-              due_date: currentEnd,
-              date: currentStart,
-              created_at: `${currentStart}T00:00:00.000Z`,
+              due_date: end,
+              date: start,
+              created_at: `${start}T00:00:00.000Z`,
             },
           ]
         : [
@@ -104,9 +119,9 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
               name_en: 'New obligation',
               amount: 200,
               paid_amount: 0,
-              due_date: currentEnd,
-              date: currentStart,
-              created_at: `${currentStart}T00:00:00.000Z`,
+              due_date: end,
+              date: start,
+              created_at: `${start}T00:00:00.000Z`,
             },
           ]
 
@@ -119,28 +134,28 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
 
   page.route('**/rest/v1/outflows**', async (route: Route) => {
     const reqUrl = new URL(route.request().url())
-    capturePeriodBounds(reqUrl)
     const select = reqUrl.searchParams.get('select') ?? ''
+    const statusFilter = reqUrl.searchParams.get('status') ?? ''
+    const isPaidFilter = statusFilter.toLowerCase().includes('paid')
     const scenario = getScenario()
-    const prevDay = dateMinusOneDay(currentStart)
+    const { start } = extractPeriodBounds(reqUrl)
+    const prevDay = dateMinusOneDay(start)
 
     // Query #1: outflows list in current period (general expenses list)
-    if (select.includes('*')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([]),
-      })
+    // ملاحظة: صفحة الالتزامات تستعمل outflows مع `select='*'` + `status=paid`.
+    // لذلك نعيد بيانات المدفوعات فقط عندما يكون status=paid، وإلا نعيد [].
+    if (select.includes('*') && !isPaidFilter) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
       return
     }
 
-    // Query #2: obligation-payment outflows up to period end
+    // obligation-payment outflows up to period end
     const payments =
       scenario === 'p4'
         ? [
             {
               amount: 500,
-              date: currentStart,
+              date: start,
               obligation_id: 'obl-1',
               name_ar: 'سداد فيزا — سداد التزام',
               name_en: 'Visa payment — obligation payment',
@@ -161,6 +176,17 @@ function setupSupabaseMocks(page: Page, getScenario: () => Scenario) {
       contentType: 'application/json',
       body: JSON.stringify(payments),
     })
+  })
+
+  // cash-liquidity additional endpoints used by the new available cash hook
+  page.route('**/rest/v1/inflows**', async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+  })
+  page.route('**/rest/v1/savings_transactions**', async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+  })
+  page.route('**/rest/v1/investment_wallet_transactions**', async (route: Route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
   })
 }
 
