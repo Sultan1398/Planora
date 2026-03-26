@@ -18,6 +18,7 @@ export type AdminUserRow = {
   email: string
   created_at: string
   subscription_status: string
+  platforms_used: string[]
   used_web: boolean
   used_android: boolean
   used_ios: boolean
@@ -69,7 +70,7 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
       .limit(50),
     admin
       .from('profiles')
-      .select('id, subscription_status, used_web, used_android, used_ios'),
+      .select('id, subscription_status, platforms_used, used_web, used_android, used_ios'),
     admin.auth.admin.listUsers({ perPage: 1000 }),
   ])
 
@@ -109,6 +110,7 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
       p.id,
       {
         subscription_status: p.subscription_status,
+        platforms_used: p.platforms_used ?? [],
         used_web: p.used_web,
         used_android: p.used_android,
         used_ios: p.used_ios,
@@ -122,7 +124,8 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
       id: u.id,
       email: u.email ?? '—',
       created_at: u.created_at,
-      subscription_status: p?.subscription_status ?? 'active',
+      subscription_status: p?.subscription_status ?? 'inactive',
+      platforms_used: p?.platforms_used ?? [],
       used_web: p?.used_web ?? false,
       used_android: p?.used_android ?? false,
       used_ios: p?.used_ios ?? false,

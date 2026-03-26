@@ -8,6 +8,13 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { Logo } from '@/components/ui/Logo'
 import { mapAuthError } from '@/lib/utils/auth-errors'
 
+function detectLoginPlatform(userAgent: string): 'Web' | 'iOS' | 'Android' {
+  const ua = userAgent.toLowerCase()
+  if (ua.includes('android')) return 'Android'
+  if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return 'iOS'
+  return 'Web'
+}
+
 function LoginPageContent() {
   const { t, toggleLocale, locale } = useLanguage()
   const router = useRouter()
@@ -31,6 +38,30 @@ function LoginPageContent() {
       const {
         data: { user: refreshedUser },
       } = await supabase.auth.getUser()
+
+      if (refreshedUser) {
+        const currentPlatform = detectLoginPlatform(navigator.userAgent)
+        const { data: profileRow } = await supabase
+          .from('profiles')
+          .select('platforms_used')
+          .eq('id', refreshedUser.id)
+          .maybeSingle()
+
+        const existing = profileRow?.platforms_used ?? []
+        const hasPlatform = existing.some((p) => p.toLowerCase() === currentPlatform.toLowerCase())
+        if (!hasPlatform) {
+          const next = [...existing, currentPlatform]
+          await supabase
+            .from('profiles')
+            .update({
+              platforms_used: next,
+              used_web: currentPlatform === 'Web' ? true : undefined,
+              used_android: currentPlatform === 'Android' ? true : undefined,
+              used_ios: currentPlatform === 'iOS' ? true : undefined,
+            })
+            .eq('id', refreshedUser.id)
+        }
+      }
 
       const role = refreshedUser?.user_metadata?.role ?? data.user?.user_metadata?.role
       router.push(role === 'admin' ? '/admin' : '/hub')

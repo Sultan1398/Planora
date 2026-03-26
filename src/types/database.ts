@@ -17,6 +17,7 @@ export interface Database {
           used_web: boolean
           used_android: boolean
           used_ios: boolean
+          platforms_used: string[]
           subscription_status: string
           created_at: string
           updated_at: string
@@ -28,6 +29,7 @@ export interface Database {
           used_web?: boolean
           used_android?: boolean
           used_ios?: boolean
+          platforms_used?: string[]
           subscription_status?: string
           created_at?: string
           updated_at?: string
@@ -39,6 +41,7 @@ export interface Database {
           used_web?: boolean
           used_android?: boolean
           used_ios?: boolean
+          platforms_used?: string[]
           subscription_status?: string
           updated_at?: string
         }

@@ -9,6 +9,10 @@ function PlatformCell({ used }: { used: boolean }) {
   return <span className="text-base">{used ? '✅' : '❌'}</span>
 }
 
+function hasPlatform(platformsUsed: string[], name: 'Web' | 'Android' | 'iOS'): boolean {
+  return platformsUsed.some((p) => p.toLowerCase() === name.toLowerCase())
+}
+
 function UserActionsMenu() {
   return (
     <details className="relative">
@@ -107,20 +111,29 @@ export function UsersManagementTab({ users }: { users: AdminUserRow[] }) {
                       })}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">
+                      <span
+                        className={cn(
+                          'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                          u.subscription_status.toLowerCase() === 'active'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : u.subscription_status.toLowerCase() === 'trial'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-slate-100 text-slate-700'
+                        )}
+                      >
                         {u.subscription_status}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                         <span title="Web">
-                          💻 <PlatformCell used={u.used_web} />
+                          💻 <PlatformCell used={hasPlatform(u.platforms_used, 'Web') || u.used_web} />
                         </span>
                         <span title="Android">
-                          🤖 <PlatformCell used={u.used_android} />
+                          🤖 <PlatformCell used={hasPlatform(u.platforms_used, 'Android') || u.used_android} />
                         </span>
                         <span title="iOS">
-                          📱 <PlatformCell used={u.used_ios} />
+                          📱 <PlatformCell used={hasPlatform(u.platforms_used, 'iOS') || u.used_ios} />
                         </span>
                       </div>
                     </td>
