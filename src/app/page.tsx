@@ -151,7 +151,7 @@ export default function LandingPage() {
               href="/signup"
               className="rounded-xl bg-brand px-8 py-4 text-lg font-bold text-white shadow-lg shadow-brand/25 transition-all hover:bg-brand-dark"
             >
-              {t('ابدأ رحلتك مجاناً', 'Start your journey for free')}
+              {t('ابدأ تجربتك المجانية (14 يوماً)', 'Start your 14-day free trial')}
             </Link>
           </div>
           <div className="relative mx-auto mt-12 max-w-5xl sm:mt-16">
@@ -270,6 +270,46 @@ export default function LandingPage() {
           alt={t('إحصاءات العام', 'Year statistics')}
           mutedBg
         />
+
+        {/* Pricing */}
+        <section className="border-t border-slate-200 bg-slate-50 py-16 sm:py-20 md:py-24">
+          <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
+            <h2 className="mb-10 text-2xl font-bold sm:text-3xl md:mb-12 md:text-4xl">
+              {t('استثمار بسيط في مستقبلك المالي', 'A simple investment in your financial future')}
+            </h2>
+
+            <div className="mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60 sm:p-10">
+              <p className="text-5xl font-extrabold tracking-tight text-brand sm:text-6xl">1.99$</p>
+              <p className="mt-2 text-base font-medium text-slate-600 sm:text-lg">{t('شهرياً', 'per month')}</p>
+              <p className="mt-6 text-base font-semibold text-slate-800 sm:text-lg">
+                {t('أول 14 يوماً مجاناً، ألغِ اشتراكك في أي وقت.', 'First 14 days free, cancel anytime.')}
+              </p>
+              <div className="mt-8">
+                <Link
+                  href="/signup"
+                  className="inline-flex w-full items-center justify-center rounded-xl bg-brand px-6 py-3 text-base font-bold text-white shadow-lg shadow-brand/25 transition-all hover:bg-brand-dark sm:text-lg"
+                >
+                  {t('اشترك الآن', 'Subscribe Now')}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Bottom CTA */}
+        <section className="border-t border-slate-200 bg-brand/10 py-14 sm:py-16">
+          <div className="mx-auto flex max-w-5xl flex-col items-center gap-5 px-4 text-center sm:px-6">
+            <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              {t('جاهز للسيطرة على أموالك؟', 'Ready to take control of your finances?')}
+            </h2>
+            <Link
+              href="/signup"
+              className="rounded-xl bg-brand px-8 py-4 text-lg font-bold text-white shadow-lg shadow-brand/25 transition-all hover:bg-brand-dark"
+            >
+              {t('ابدأ تجربتك المجانية (14 يوماً)', 'Start your 14-day free trial')}
+            </Link>
+          </div>
+        </section>
       </main>
 
       <footer className="border-t border-slate-200 px-6 py-10 text-center text-slate-500 sm:py-12">
