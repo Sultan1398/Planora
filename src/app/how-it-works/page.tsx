@@ -6,7 +6,36 @@ import { Navbar } from '@/components/Navbar'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { cn } from '@/lib/utils'
 
-const content = {
+interface Subsection {
+  subHeading: string
+  bullets?: string[]
+  text?: string
+}
+
+interface Feature {
+  title: string
+  desc: string
+}
+
+interface Section {
+  id: string
+  heading: string
+  text: string
+  subsections?: Subsection[]
+  features?: Feature[]
+}
+
+interface ContentLocale {
+  title: string
+  sections: Section[]
+}
+
+interface Content {
+  ar: ContentLocale
+  en: ContentLocale
+}
+
+const content: Content = {
   ar: {
     title: 'كيف يعمل بلانورا؟',
     sections: [
@@ -84,11 +113,9 @@ const content = {
       },
     ],
   },
-} as const
+}
 
-type LocaleKey = keyof typeof content
-
-type Section = (typeof content)['ar']['sections'][number]
+type LocaleKey = keyof Content
 
 export default function HowItWorksPage() {
   const { locale, t } = useLanguage()
@@ -118,29 +145,28 @@ export default function HowItWorksPage() {
             <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{c.title}</h1>
 
             <div className="mt-10 space-y-12 sm:space-y-14">
-              {c.sections.map((section: Section) => (
+              {c.sections.map((section) => (
                 <section key={section.id} id={section.id} className="scroll-mt-28 sm:scroll-mt-32">
                   <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">{section.heading}</h2>
                   <p className="mt-4 text-base leading-relaxed text-slate-700">{section.text}</p>
 
-                  {'subsections' in section &&
-                    section.subsections?.map((sub) => (
-                      <div key={sub.subHeading} className="mt-8 border-slate-100 border-s-4 ps-4 sm:ps-5">
-                        <h3 className="text-lg font-semibold text-slate-900">{sub.subHeading}</h3>
-                        {'bullets' in sub && sub.bullets && (
-                          <ul className="mt-3 list-disc space-y-2 ps-5 text-base leading-relaxed text-slate-700">
-                            {sub.bullets.map((item) => (
-                              <li key={item}>{item}</li>
-                            ))}
-                          </ul>
-                        )}
-                        {'text' in sub && sub.text && (
-                          <p className="mt-3 text-base leading-relaxed text-slate-700">{sub.text}</p>
-                        )}
-                      </div>
-                    ))}
+                  {section.subsections?.map((sub) => (
+                    <div key={sub.subHeading} className="mt-8 border-slate-100 border-s-4 ps-4 sm:ps-5">
+                      <h3 className="text-lg font-semibold text-slate-900">{sub.subHeading}</h3>
+                      {sub.bullets && sub.bullets.length > 0 && (
+                        <ul className="mt-3 list-disc space-y-2 ps-5 text-base leading-relaxed text-slate-700">
+                          {sub.bullets.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {sub.text && (
+                        <p className="mt-3 text-base leading-relaxed text-slate-700">{sub.text}</p>
+                      )}
+                    </div>
+                  ))}
 
-                  {'features' in section && section.features && section.features.length > 0 && (
+                  {section.features && section.features.length > 0 && (
                     <ul className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
                       {section.features.map((f) => (
                         <li
