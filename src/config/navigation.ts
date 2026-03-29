@@ -3,7 +3,6 @@ import {
   Wallet,
   TrendingUp,
   TrendingDown,
-  Coins,
   Sprout,
   LineChart,
   Settings,
@@ -64,19 +63,6 @@ export const appNavItems: AppNavItem[] = [
       bgActive: 'bg-rose-50',
       textActive: 'text-rose-950',
       ringActive: 'ring-rose-200/80',
-    },
-  },
-  {
-    href: '/savings',
-    icon: Coins,
-    labelAr: 'المدخرات',
-    labelEn: 'Savings',
-    accent: {
-      icon: 'text-amber-600',
-      iconActive: 'text-amber-700',
-      bgActive: 'bg-amber-50',
-      textActive: 'text-amber-950',
-      ringActive: 'ring-amber-200/80',
     },
   },
   {

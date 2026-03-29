@@ -49,7 +49,7 @@ npm run dev
 | Hub | `/hub` | المحفظة |
 | Inflow | `/inflow` | الدخل |
 | Outflow | `/outflow` | المصروف |
-| Savings | `/savings` | المدخرات |
+| Growth | `/growth` | النمو |
 | Investments | `/investments` | الاستثمارات |
 | Dashboard | `/dashboard` | التحليل |
 | Year Stats | `/statistics` | إحصاءات العام |

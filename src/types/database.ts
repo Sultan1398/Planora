@@ -286,6 +286,7 @@ export interface Database {
           name_en: string
           amount: number
           roi_percentage: number
+          start_date: string
           due_date: string
           status: 'active' | 'closed'
           created_at: string
@@ -297,6 +298,7 @@ export interface Database {
           name_en: string
           amount: number
           roi_percentage: number
+          start_date: string
           due_date: string
           status?: 'active' | 'closed'
           created_at?: string
@@ -306,6 +308,7 @@ export interface Database {
           name_en?: string
           amount?: number
           roi_percentage?: number
+          start_date?: string
           due_date?: string
           status?: 'active' | 'closed'
         }
@@ -319,6 +322,7 @@ export interface Database {
           name_en: string
           estimated_value: number
           asset_type: string
+          purchase_date: string
           created_at: string
         }
         Insert: {
@@ -328,6 +332,7 @@ export interface Database {
           name_en: string
           estimated_value: number
           asset_type: string
+          purchase_date: string
           created_at?: string
         }
         Update: {
@@ -335,6 +340,7 @@ export interface Database {
           name_en?: string
           estimated_value?: number
           asset_type?: string
+          purchase_date?: string
         }
         Relationships: []
       }

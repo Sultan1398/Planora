@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  ArrowDownLeft,
   ArrowLeft,
+  ArrowUpRight,
   DownloadCloud,
+  Loader2,
   Pencil,
+  PiggyBank,
   Plus,
   Trash2,
   UploadCloud,
@@ -13,25 +17,44 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { usePeriod } from '@/contexts/PeriodContext'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { PeriodNavigator } from '@/components/layout/PeriodNavigator'
+import { FixedAssetModal, displayAssetType } from '@/components/growth/FixedAssetModal'
+import { FixedDepositModal } from '@/components/growth/FixedDepositModal'
+import { SavingsGoalFormModal } from '@/components/savings/SavingsGoalFormModal'
+import { SavingsTransactionModal } from '@/components/savings/SavingsTransactionModal'
 import { getAppNavItem } from '@/config/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { parseLocalISODate } from '@/lib/date-local'
+import { formatGregorianDate } from '@/lib/period'
 import { formatMoney } from '@/lib/format-money'
+import { deleteSavingsGoalWithOrderedTxRemoval } from '@/lib/savings-delete-goal'
 import type { FixedAsset, FixedDeposit, SavingsGoal } from '@/types/database'
 import { useAvailableCash } from '@/hooks/useAvailableCash'
 import { cn } from '@/lib/utils'
 
 const growthNav = getAppNavItem('/growth')
 
-type SavingsGoalRow = Pick<SavingsGoal, 'id' | 'name_ar' | 'name_en' | 'current_amount' | 'target_amount'>
-
 export default function GrowthPage() {
   const { t, locale } = useLanguage()
   const { periodKey, periodDates, startDay } = usePeriod()
   const [loading, setLoading] = useState(true)
-  const [savingsFunds, setSavingsFunds] = useState<SavingsGoalRow[]>([])
+  const [goals, setGoals] = useState<SavingsGoal[]>([])
   const [fixedDeposits, setFixedDeposits] = useState<FixedDeposit[]>([])
   const [fixedAssets, setFixedAssets] = useState<FixedAsset[]>([])
   const [fetchError, setFetchError] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deletingDepositId, setDeletingDepositId] = useState<string | null>(null)
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null)
+
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null)
+  const [txOpen, setTxOpen] = useState(false)
+  const [txGoal, setTxGoal] = useState<SavingsGoal | null>(null)
+  const [txMode, setTxMode] = useState<'deposit' | 'withdrawal'>('deposit')
+
+  const [depositModalOpen, setDepositModalOpen] = useState(false)
+  const [editingDeposit, setEditingDeposit] = useState<FixedDeposit | null>(null)
+  const [assetModalOpen, setAssetModalOpen] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<FixedAsset | null>(null)
 
   const { availableCash, loading: cashLoading, error: cashError, reload: reloadCash } = useAvailableCash({
     periodKey,
@@ -39,318 +62,579 @@ export default function GrowthPage() {
     startDay,
   })
 
-  const goalLabel = useCallback(
-    (g: SavingsGoalRow) => (locale === 'ar' ? g.name_ar : g.name_en),
-    [locale]
-  )
-
   const namedLabel = useCallback(
     (nameAr: string, nameEn: string) => (locale === 'ar' ? nameAr : nameEn),
     [locale]
   )
 
-  const fetchGrowthData = useCallback(async () => {
-    try {
+  const reload = useCallback(
+    async (isStillMounted: () => boolean = () => true) => {
+      if (!isStillMounted()) return
       setLoading(true)
       setFetchError('')
       const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
+      if (!isStillMounted()) return
       if (!user) {
-        setSavingsFunds([])
+        setGoals([])
         setFixedDeposits([])
         setFixedAssets([])
+        setLoading(false)
         return
       }
 
       const uid = user.id
 
       const [savingsRes, depositsRes, assetsRes] = await Promise.all([
-        supabase
-          .from('savings_goals')
-          .select('id, name_ar, name_en, current_amount, target_amount')
-          .eq('user_id', uid)
-          .order('created_at', { ascending: false }),
+        supabase.from('savings_goals').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
         supabase
           .from('fixed_deposits')
-          .select('id, name_ar, name_en, amount, roi_percentage, due_date, status, created_at')
+          .select('id, name_ar, name_en, amount, roi_percentage, start_date, due_date, status, created_at')
           .eq('user_id', uid)
           .eq('status', 'active')
           .order('created_at', { ascending: false }),
         supabase
           .from('fixed_assets')
-          .select('id, name_ar, name_en, estimated_value, asset_type, created_at')
+          .select('id, name_ar, name_en, estimated_value, asset_type, purchase_date, created_at')
           .eq('user_id', uid)
           .order('created_at', { ascending: false }),
       ])
 
-      if (savingsRes.error) throw savingsRes.error
-      if (depositsRes.error) throw depositsRes.error
-      if (assetsRes.error) throw assetsRes.error
+      if (!isStillMounted()) return
 
-      setSavingsFunds((savingsRes.data as SavingsGoalRow[] | null) ?? [])
-      setFixedDeposits((depositsRes.data as FixedDeposit[] | null) ?? [])
-      setFixedAssets((assetsRes.data as FixedAsset[] | null) ?? [])
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('Error fetching growth data:', msg)
-      setFetchError(msg)
-    } finally {
+      const errs: string[] = []
+      if (savingsRes.error) errs.push(savingsRes.error.message)
+      if (depositsRes.error) errs.push(depositsRes.error.message)
+      if (assetsRes.error) errs.push(assetsRes.error.message)
+      setFetchError(errs.join(' · '))
+
+      setGoals(savingsRes.error ? [] : ((savingsRes.data as SavingsGoal[] | null) ?? []))
+      setFixedDeposits(depositsRes.error ? [] : ((depositsRes.data as FixedDeposit[] | null) ?? []))
+      setFixedAssets(assetsRes.error ? [] : ((assetsRes.data as FixedAsset[] | null) ?? []))
+
       setLoading(false)
+      void reloadCash()
+    },
+    [reloadCash]
+  )
+
+  useEffect(() => {
+    let isMounted = true
+    const isStillMounted = () => isMounted
+    void reload(isStillMounted)
+    return () => {
+      isMounted = false
     }
-  }, [])
+  }, [reload, periodKey])
 
-  useEffect(() => {
-    void fetchGrowthData()
-  }, [fetchGrowthData])
+  function openNewGoal() {
+    setEditingGoal(null)
+    setFormOpen(true)
+  }
 
-  useEffect(() => {
-    void reloadCash()
-  }, [reloadCash, periodKey])
+  function openEditGoal(g: SavingsGoal) {
+    setEditingGoal(g)
+    setFormOpen(true)
+  }
+
+  function openDeposit(g: SavingsGoal) {
+    setTxGoal(g)
+    setTxMode('deposit')
+    setTxOpen(true)
+  }
+
+  function openWithdraw(g: SavingsGoal) {
+    setTxGoal(g)
+    setTxMode('withdrawal')
+    setTxOpen(true)
+  }
+
+  async function handleDelete(g: SavingsGoal) {
+    const bal = Number(g.current_amount)
+    const msg =
+      bal > 0.0001
+        ? t(
+            'حذف الهدف سيُلغي معاملاته ويُعيد أثرها على السيولة في الفترات المعنية (المبلغ يعود منطقياً للمحفظة). متابعة؟',
+            'Deleting will remove transactions and restore liquidity in the affected periods (balance returns to the wallet logically). Continue?'
+          )
+        : t('حذف هذا الهدف؟', 'Delete this savings goal?')
+    if (!confirm(msg)) return
+
+    setDeletingId(g.id)
+    const supabase = createClient()
+    const { error: delErr } = await deleteSavingsGoalWithOrderedTxRemoval(supabase, g.id)
+    setDeletingId(null)
+    if (delErr) {
+      alert(delErr.message)
+      return
+    }
+    void reload()
+  }
+
+  function openNewDeposit() {
+    setEditingDeposit(null)
+    setDepositModalOpen(true)
+  }
+
+  function openEditDeposit(d: FixedDeposit) {
+    setEditingDeposit(d)
+    setDepositModalOpen(true)
+  }
+
+  function openNewAsset() {
+    setEditingAsset(null)
+    setAssetModalOpen(true)
+  }
+
+  function openEditAsset(a: FixedAsset) {
+    setEditingAsset(a)
+    setAssetModalOpen(true)
+  }
+
+  async function handleDeleteDeposit(d: FixedDeposit) {
+    if (
+      !confirm(
+        t('حذف هذه الوديعة؟ لا يمكن التراجع.', 'Delete this deposit? This cannot be undone.')
+      )
+    )
+      return
+    setDeletingDepositId(d.id)
+    const supabase = createClient()
+    const { error: delErr } = await supabase.from('fixed_deposits').delete().eq('id', d.id)
+    setDeletingDepositId(null)
+    if (delErr) {
+      alert(delErr.message)
+      return
+    }
+    void reload()
+  }
+
+  async function handleDeleteAsset(a: FixedAsset) {
+    if (
+      !confirm(
+        t('حذف هذا الأصل؟ لا يمكن التراجع.', 'Delete this asset? This cannot be undone.')
+      )
+    )
+      return
+    setDeletingAssetId(a.id)
+    const supabase = createClient()
+    const { error: delErr } = await supabase.from('fixed_assets').delete().eq('id', a.id)
+    setDeletingAssetId(null)
+    if (delErr) {
+      alert(delErr.message)
+      return
+    }
+    void reload()
+  }
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] flex-1 items-center justify-center bg-[#F9FAFB]">
-        <div className="animate-pulse text-xl font-bold text-[#2563EB]">
+      <div className="mx-auto flex min-h-[50vh] max-w-6xl flex-1 flex-col items-center justify-center px-4 py-16 lg:px-6">
+        <Loader2 className="h-10 w-10 animate-spin text-[#2563EB]" aria-hidden />
+        <p className="mt-4 text-lg font-semibold text-[#2563EB]">
           {t('جاري تحميل بيانات النمو...', 'Loading growth data...')}
-        </div>
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10 pt-2 lg:px-6 lg:pb-12">
+    <div className="mx-auto max-w-6xl p-4 lg:p-6">
       <PageHeader
         nav={growthNav}
         subtitle={t('أهداف ادخار، ودائع، وأصول ثابتة', 'Savings goals, deposits, and fixed assets')}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <PeriodNavigator />
+            <button
+              type="button"
+              onClick={openNewGoal}
+              className="rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
+            >
+              {t('+ هدف جديد', '+ New goal')}
+            </button>
           </div>
         }
       />
 
+      {fetchError || cashError ? (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {[fetchError, cashError].filter(Boolean).join(' · ')}
+        </div>
+      ) : null}
+
+      {!cashLoading && availableCash != null ? (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-white px-4 py-4 shadow-sm">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+            <span className="text-sm font-medium text-[#6B7280]">
+              {t('السيولة المتاحة في الفترة', 'Available liquidity this period')}
+            </span>
+            <button
+              type="button"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#E5E7EB] bg-white px-2 py-1 text-xs font-bold text-[#F59E0B] hover:bg-slate-50"
+            >
+              <UploadCloud className="h-4 w-4" aria-hidden />
+              {t('+ إضافة', '+ Add')}
+            </button>
+          </div>
+          <span className="text-2xl font-bold tabular-nums text-[#2563EB] md:text-3xl" dir="ltr">
+            {formatMoney(availableCash, locale)} {t('ر.س', 'SAR')}
+          </span>
+        </div>
+      ) : null}
+
       <div
         className={cn(
-          'min-h-[calc(100vh-8rem)] rounded-3xl border border-[#E5E7EB] bg-[#F9FAFB] p-6 text-[#1F2937] md:p-10',
+          'grid grid-cols-1 gap-8 xl:grid-cols-2 xl:gap-10',
           locale === 'ar' ? 'text-right' : 'text-left'
         )}
       >
-        {fetchError || cashError ? (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {[fetchError, cashError].filter(Boolean).join(' · ')}
+        {/* صناديق الادخار */}
+        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-6 flex items-center gap-2 border-b border-[#E5E7EB] pb-4">
+            <DownloadCloud className="h-6 w-6 shrink-0 text-[#F59E0B]" aria-hidden />
+            <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">{t('صناديق الادخار', 'Savings funds')}</h2>
           </div>
-        ) : null}
 
-        {/* الترويسة */}
-        <div className="mb-10 flex flex-col gap-4 border-b border-[#E5E7EB] pb-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="flex items-center gap-x-2">
-              <DownloadCloud className="h-8 w-8 shrink-0 text-[#F59E0B]" aria-hidden />
-              <h1 className="text-3xl font-bold text-[#1F2937] md:text-4xl">
-                {t('النمو', 'Growth')}
-              </h1>
+          {goals.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] px-6 py-12 text-center">
+              <PiggyBank className="mx-auto mb-3 h-10 w-10 text-[#9CA3AF]" aria-hidden />
+              <p className="mb-4 text-[#6B7280]">{t('لا توجد أهداف ادخار بعد', 'No savings goals yet')}</p>
+              <button
+                type="button"
+                onClick={openNewGoal}
+                className="rounded-full bg-[#2563EB] px-5 py-2 text-sm font-bold text-white hover:bg-[#1D4ED8]"
+              >
+                {t('إضافة هدف', 'Add a goal')}
+              </button>
             </div>
-            <p className="mt-1 text-sm text-[#6B7280]">
-              {t(
-                'إدارة الأهداف الادخارية، الودائع، والأصول الثابتة.',
-                'Manage savings goals, deposits, and fixed assets.'
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="flex items-center gap-x-2 rounded-full bg-[#2563EB] px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8] md:mt-0"
-          >
-            <Plus className="h-5 w-5" aria-hidden />
-            {t('+ أصل جديد', '+ New asset')}
-          </button>
-        </div>
-
-        {/* السيولة */}
-        <div className="mb-12 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm">
-          <div className="mb-2 flex items-center justify-between gap-x-3">
-            <p className="text-sm font-medium text-[#6B7280]">
-              {t('السيولة المتاحة في الفترة', 'Available liquidity this period')}
-            </p>
-            <button
-              type="button"
-              className="flex cursor-pointer items-center gap-x-2 rounded border border-[#E5E7EB] bg-white px-2 py-0.5 hover:bg-gray-50"
-            >
-              <UploadCloud className="h-4 w-4 text-[#F59E0B]" aria-hidden />
-              <span className="text-xs font-bold text-[#F59E0B]">{t('+ إضافة', '+ Add')}</span>
-            </button>
-          </div>
-          <h2 className="text-4xl font-bold text-[#2563EB] tabular-nums md:text-5xl" dir="ltr">
-            {cashLoading || availableCash == null
-              ? '—'
-              : `${formatMoney(availableCash, locale)} ${t('ر.س', 'SAR')}`}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">
-          {/* صناديق الادخار */}
-          <div className="h-fit rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm md:p-8">
-            <div className="mb-8 flex items-center justify-between border-b border-[#E5E7EB] pb-3">
-              <div className="flex items-center gap-x-2">
-                <DownloadCloud className="h-6 w-6 text-[#F59E0B]" aria-hidden />
-                <h3 className="text-xl font-bold text-[#1F2937] md:text-2xl">
-                  {t('صناديق الادخار', 'Savings funds')}
-                </h3>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-y-6">
-              {savingsFunds.length === 0 ? (
-                <p className="py-4 text-center text-[#6B7280]">
-                  {t('لا توجد أهداف ادخارية حالياً.', 'No savings goals yet.')}
-                </p>
-              ) : (
-                savingsFunds.map((fund) => {
-                  const progress =
-                    fund.target_amount > 0 ? (fund.current_amount / fund.target_amount) * 100 : 0
-                  return (
-                    <div key={fund.id} className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-6">
-                      <div className="mb-3 flex items-center justify-between">
-                        <h4 className="text-start text-lg font-bold text-[#1F2937]">{goalLabel(fund)}</h4>
-                        <div className="flex items-center gap-x-2">
-                          <Pencil className="h-4 w-4 cursor-pointer text-[#6B7280] hover:text-[#2563EB]" aria-hidden />
-                          <Trash2 className="h-4 w-4 cursor-pointer text-[#EF4444] hover:text-red-700" aria-hidden />
-                        </div>
-                      </div>
-
-                      <div className="mb-3 h-2 w-full rounded-full bg-[#E5E7EB]">
-                        <div
-                          className="h-full rounded-full bg-[#2563EB]"
-                          style={{ width: `${Math.min(progress, 100)}%` }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs text-[#6B7280]">
-                        <span dir="ltr">
-                          {t('رصيد:', 'Balance:')}{' '}
-                          {formatMoney(Number(fund.current_amount), locale)} {t('ر.س', 'SAR')}
-                        </span>
-                        <span dir="ltr">
-                          {t('هدف:', 'Target:')}{' '}
-                          {formatMoney(Number(fund.target_amount), locale)} {t('ر.س', 'SAR')}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-3 border-t border-[#E5E7EB] pt-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex cursor-pointer items-center gap-x-1.5 text-xs text-[#6B7280] hover:text-[#2563EB]">
-                          <Pencil className="h-3.5 w-3.5 text-[#2563EB]" aria-hidden />
-                          {t('تحديث الرصيد', 'Update balance')}
-                        </div>
-                        <div className="flex gap-x-2">
-                          <button
-                            type="button"
-                            className="rounded border border-[#EF4444]/20 bg-[#EF4444]/10 px-3 py-1.5 text-xs font-bold text-[#EF4444] hover:bg-[#EF4444]/20"
-                          >
-                            {t('سحب', 'Withdraw')}
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded border border-[#10B981]/20 bg-[#10B981]/10 px-3 py-1.5 text-xs font-bold text-[#10B981] hover:bg-[#10B981]/20"
-                          >
-                            {t('إيداع', 'Deposit')}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-y-10">
-            {/* الودائع */}
-            <div className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm md:p-8">
-              <div className="mb-8 flex items-center justify-between border-b border-[#E5E7EB] pb-3">
-                <div className="flex items-center gap-x-2">
-                  <DownloadCloud className="h-6 w-6 text-[#F59E0B]" aria-hidden />
-                  <h3 className="text-xl font-bold text-[#1F2937] md:text-2xl">
-                    {t('الودائع والعوائد الثابتة', 'Fixed deposits & returns')}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-y-4">
-                {fixedDeposits.length === 0 ? (
-                  <p className="py-4 text-center text-[#6B7280]">
-                    {t('لا توجد ودائع حالياً.', 'No deposits yet.')}
-                  </p>
-                ) : (
-                  fixedDeposits.map((deposit) => (
-                    <div key={deposit.id} className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-6">
-                      <h4 className="mb-2 text-start text-lg font-bold text-[#1F2937]">
-                        {namedLabel(deposit.name_ar, deposit.name_en)}
-                      </h4>
-                      <div className="flex flex-col gap-2 text-sm text-[#6B7280] sm:flex-row sm:items-center sm:justify-between">
-                        <p dir="ltr">
-                          {t('المبلغ:', 'Amount:')}{' '}
-                          <span className="font-medium text-[#1F2937]">
-                            {formatMoney(Number(deposit.amount), locale)} {t('ر.س', 'SAR')}
+          ) : (
+            <ul className="flex flex-col gap-5" role="list">
+              {goals.map((g) => {
+                const target = Number(g.target_amount)
+                const cur = Number(g.current_amount)
+                const pct = target > 0 ? Math.min(100, (cur / target) * 100) : 0
+                const startD = g.start_date ?? g.created_at.slice(0, 10)
+                const endD = g.target_date
+                return (
+                  <li
+                    key={g.id}
+                    className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+                  >
+                    <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-bold text-[#1F2937]">
+                          {locale === 'ar' ? g.name_ar : g.name_en}
+                        </h3>
+                        <p className="mt-1 text-xs leading-relaxed text-[#6B7280]">
+                          {t('البداية:', 'Start:')}{' '}
+                          <span dir="ltr" className="tabular-nums">
+                            {formatGregorianDate(parseLocalISODate(startD), locale)}
+                          </span>
+                          {' · '}
+                          {t('الإغلاق:', 'Close:')}{' '}
+                          <span dir="ltr" className="tabular-nums">
+                            {endD ? formatGregorianDate(parseLocalISODate(endD), locale) : '—'}
                           </span>
                         </p>
-                        <div className="flex items-center gap-x-2 rounded bg-[#10B981]/10 px-2.5 py-1 text-xs font-bold text-[#10B981]">
-                          <ArrowLeft className="h-3.5 w-3.5 rotate-[-135deg]" aria-hidden />
-                          {t('العائد السنوي:', 'Annual yield:')} {Number(deposit.roi_percentage)}%
-                        </div>
                       </div>
-                      <p className="mt-3 border-t border-[#E5E7EB] pt-2 text-start text-xs text-[#6B7280]">
-                        {t('تاريخ الاستحقاق:', 'Due date:')}{' '}
-                        {new Date(deposit.due_date).toLocaleDateString(locale === 'ar' ? 'ar-SA' : 'en-US')}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openDeposit(g)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-[#10B981]/15 px-2.5 py-1.5 text-xs font-bold text-[#059669] hover:bg-[#10B981]/25"
+                        >
+                          <ArrowDownLeft className="h-3.5 w-3.5" aria-hidden />
+                          {t('إيداع', 'Deposit')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openWithdraw(g)}
+                          disabled={cur <= 0.0001}
+                          className="inline-flex items-center gap-1 rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-xs font-bold text-[#374151] hover:bg-white disabled:opacity-40"
+                        >
+                          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                          {t('سحب', 'Withdraw')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEditGoal(g)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6B7280] hover:bg-white hover:text-[#2563EB]"
+                          aria-label={t('تعديل', 'Edit')}
+                        >
+                          <Pencil className="h-[18px] w-[18px]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(g)}
+                          disabled={deletingId === g.id}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6B7280] hover:bg-red-50 hover:text-[#EF4444] disabled:opacity-50"
+                          aria-label={t('حذف', 'Delete')}
+                        >
+                          {deletingId === g.id ? (
+                            <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                          ) : (
+                            <Trash2 className="h-[18px] w-[18px]" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
 
-            {/* الأصول الثابتة */}
-            <div className="rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm md:p-8">
-              <div className="mb-8 flex items-center justify-between border-b border-[#E5E7EB] pb-3">
-                <div className="flex items-center gap-x-2">
-                  <DownloadCloud className="h-6 w-6 text-[#F59E0B]" aria-hidden />
-                  <h3 className="text-xl font-bold text-[#1F2937] md:text-2xl">
-                    {t('الأصول الثابتة', 'Fixed assets')}
-                  </h3>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-y-4">
-                {fixedAssets.length === 0 ? (
-                  <p className="py-4 text-center text-[#6B7280]">
-                    {t('لا توجد أصول ثابتة حالياً.', 'No fixed assets yet.')}
-                  </p>
-                ) : (
-                  fixedAssets.map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="flex flex-col justify-between gap-y-3 rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-6 sm:flex-row sm:items-center"
-                    >
-                      <div>
-                        <h4 className="text-start text-lg font-bold text-[#1F2937]">
-                          {namedLabel(asset.name_ar, asset.name_en)}
-                        </h4>
-                        <span className="mt-1 inline-block rounded bg-gray-200 px-2 py-0.5 text-xs text-[#6B7280]">
-                          {asset.asset_type}
+                    <div className="mt-3">
+                      <div className="mb-2 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wide text-[#6B7280]">
+                        <span>{t('التقدم', 'Progress')}</span>
+                        <span dir="ltr" className="tabular-nums text-[#374151]">
+                          {pct.toFixed(0)}%
                         </span>
                       </div>
-                      <div className="rounded bg-[#E5E7EB] px-3 py-1.5 text-sm font-bold text-[#1F2937] tabular-nums" dir="ltr">
-                        {formatMoney(Number(asset.estimated_value), locale)} {t('ر.س', 'SAR')}
+                      <div className="h-2.5 overflow-hidden rounded-full bg-[#E5E7EB]">
+                        <div
+                          className={cn(
+                            'h-full rounded-full bg-[#2563EB] transition-all duration-300',
+                            pct >= 100 && 'bg-[#10B981]'
+                          )}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
                     </div>
-                  ))
-                )}
+
+                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[#E5E7EB] pt-3 text-xs text-[#6B7280]">
+                      <span>
+                        {t('المستهدف:', 'Target:')}{' '}
+                        <span className="font-bold text-[#111827] tabular-nums" dir="ltr">
+                          {formatMoney(target, locale)}
+                        </span>
+                      </span>
+                      <span>
+                        {t('الرصيد:', 'Saved:')}{' '}
+                        <span className="font-bold text-[#374151] tabular-nums" dir="ltr">
+                          {formatMoney(cur, locale)}
+                        </span>
+                      </span>
+                      <span>
+                        {t('المتبقي:', 'Remaining:')}{' '}
+                        <span className="font-bold tabular-nums text-[#D97706]" dir="ltr">
+                          {formatMoney(Math.max(0, target - cur), locale)}
+                        </span>
+                      </span>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+
+        <div className="flex flex-col gap-8">
+          {/* الودائع */}
+          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
+              <div className="flex min-w-0 items-center gap-2">
+                <DownloadCloud className="h-6 w-6 shrink-0 text-[#F59E0B]" aria-hidden />
+                <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">
+                  {t('الودائع والعوائد الثابتة', 'Fixed deposits & returns')}
+                </h2>
               </div>
+              <button
+                type="button"
+                onClick={openNewDeposit}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                {t('+ وديعة جديدة', '+ New deposit')}
+              </button>
             </div>
-          </div>
+            <div className="flex flex-col gap-4">
+              {fixedDeposits.length === 0 ? (
+                <p className="py-4 text-center text-[#6B7280]">{t('لا توجد ودائع حالياً.', 'No deposits yet.')}</p>
+              ) : (
+                fixedDeposits.map((deposit) => (
+                  <div key={deposit.id} className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-5">
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <h3 className="text-start text-lg font-bold text-[#1F2937]">
+                        {namedLabel(deposit.name_ar, deposit.name_en)}
+                      </h3>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditDeposit(deposit)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6B7280] hover:bg-white hover:text-[#2563EB]"
+                          aria-label={t('تعديل', 'Edit')}
+                        >
+                          <Pencil className="h-[18px] w-[18px]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDeposit(deposit)}
+                          disabled={deletingDepositId === deposit.id}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6B7280] hover:bg-red-50 hover:text-[#EF4444] disabled:opacity-50"
+                          aria-label={t('حذف', 'Delete')}
+                        >
+                          {deletingDepositId === deposit.id ? (
+                            <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                          ) : (
+                            <Trash2 className="h-[18px] w-[18px]" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 text-sm text-[#6B7280] sm:flex-row sm:items-center sm:justify-between">
+                      <p dir="ltr">
+                        {t('المبلغ:', 'Amount:')}{' '}
+                        <span className="font-medium text-[#1F2937]">
+                          {formatMoney(Number(deposit.amount), locale)} {t('ر.س', 'SAR')}
+                        </span>
+                      </p>
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-[#10B981]/10 px-2.5 py-1 text-xs font-bold text-[#059669]">
+                        <ArrowLeft className="h-3.5 w-3.5 rotate-[-135deg]" aria-hidden />
+                        {t('العائد السنوي:', 'Annual yield:')} {Number(deposit.roi_percentage)}%
+                      </div>
+                    </div>
+                    <p className="mt-3 border-t border-[#E5E7EB] pt-2 text-start text-xs text-[#6B7280]">
+                      {t('تاريخ البدء:', 'Start:')}{' '}
+                      <span dir="ltr" className="tabular-nums">
+                        {deposit.start_date
+                          ? formatGregorianDate(parseLocalISODate(deposit.start_date.slice(0, 10)), locale)
+                          : '—'}
+                      </span>
+                      {' · '}
+                      {t('تاريخ الاستحقاق:', 'Due:')}{' '}
+                      <span dir="ltr" className="tabular-nums">
+                        {formatGregorianDate(parseLocalISODate(deposit.due_date.slice(0, 10)), locale)}
+                      </span>
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+
+          {/* الأصول الثابتة */}
+          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
+              <div className="flex min-w-0 items-center gap-2">
+                <DownloadCloud className="h-6 w-6 shrink-0 text-[#F59E0B]" aria-hidden />
+                <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">{t('الأصول الثابتة', 'Fixed assets')}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={openNewAsset}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                {t('+ أصل جديد', '+ New asset')}
+              </button>
+            </div>
+            <div className="flex flex-col gap-4">
+              {fixedAssets.length === 0 ? (
+                <p className="py-4 text-center text-[#6B7280]">
+                  {t('لا توجد أصول ثابتة حالياً.', 'No fixed assets yet.')}
+                </p>
+              ) : (
+                fixedAssets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="flex flex-col justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-5 sm:flex-row sm:items-start"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <h3 className="text-start text-lg font-bold text-[#1F2937]">
+                          {namedLabel(asset.name_ar, asset.name_en)}
+                        </h3>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditAsset(asset)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6B7280] hover:bg-white hover:text-[#2563EB]"
+                            aria-label={t('تعديل', 'Edit')}
+                          >
+                            <Pencil className="h-[18px] w-[18px]" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAsset(asset)}
+                            disabled={deletingAssetId === asset.id}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#6B7280] hover:bg-red-50 hover:text-[#EF4444] disabled:opacity-50"
+                            aria-label={t('حذف', 'Delete')}
+                          >
+                            {deletingAssetId === asset.id ? (
+                              <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                            ) : (
+                              <Trash2 className="h-[18px] w-[18px]" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                      <span className="mt-1 inline-block rounded bg-[#E5E7EB] px-2 py-0.5 text-xs text-[#6B7280]">
+                        {displayAssetType(t, asset.asset_type)}
+                      </span>
+                      <p className="mt-2 text-start text-xs text-[#6B7280]">
+                        {t('تاريخ الشراء:', 'Purchase:')}{' '}
+                        <span dir="ltr" className="tabular-nums">
+                          {asset.purchase_date
+                            ? formatGregorianDate(parseLocalISODate(asset.purchase_date.slice(0, 10)), locale)
+                            : '—'}
+                        </span>
+                      </p>
+                    </div>
+                    <div
+                      className="shrink-0 self-start rounded-lg bg-[#E5E7EB] px-3 py-1.5 text-sm font-bold text-[#1F2937] tabular-nums sm:self-center"
+                      dir="ltr"
+                    >
+                      {formatMoney(Number(asset.estimated_value), locale)} {t('ر.س', 'SAR')}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
         </div>
       </div>
+
+      <SavingsGoalFormModal
+        open={formOpen}
+        onClose={() => {
+          setFormOpen(false)
+          setEditingGoal(null)
+        }}
+        onSaved={() => void reload()}
+        edit={editingGoal}
+      />
+
+      <SavingsTransactionModal
+        open={txOpen}
+        onClose={() => {
+          setTxOpen(false)
+          setTxGoal(null)
+        }}
+        onSaved={() => void reload()}
+        goal={txGoal}
+        mode={txMode}
+        periodStart={periodDates.start}
+        periodEnd={periodDates.end}
+      />
+
+      <FixedDepositModal
+        open={depositModalOpen}
+        onClose={() => {
+          setDepositModalOpen(false)
+          setEditingDeposit(null)
+        }}
+        onSaved={() => void reload()}
+        edit={editingDeposit}
+      />
+
+      <FixedAssetModal
+        open={assetModalOpen}
+        onClose={() => {
+          setAssetModalOpen(false)
+          setEditingAsset(null)
+        }}
+        onSaved={() => void reload()}
+        edit={editingAsset}
+      />
     </div>
   )
 }
