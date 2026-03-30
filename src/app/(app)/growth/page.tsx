@@ -5,13 +5,13 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
-  DownloadCloud,
   Loader2,
   Pencil,
   PiggyBank,
   Plus,
   Trash2,
 } from 'lucide-react'
+import { Vault, PiggyBank as PhosphorPiggyBank, Bank, Buildings } from '@phosphor-icons/react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { usePeriod } from '@/contexts/PeriodContext'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -272,7 +272,7 @@ export default function GrowthPage() {
       <div className="mb-10 flex flex-col justify-between gap-y-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm md:flex-row md:items-center md:p-8">
         <div>
           <div className="mb-2 flex items-center gap-x-2">
-            <DownloadCloud className="h-5 w-5 text-[#2563EB]" aria-hidden />
+            <Vault weight="duotone" className="h-6 w-6 text-[#2563EB]" aria-hidden />
             <p className="text-sm font-medium text-[#6B7280]">
               {t('رصيد محفظة النمو', 'Growth wallet balance')}
             </p>
@@ -313,7 +313,7 @@ export default function GrowthPage() {
         <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
             <div className="flex min-w-0 items-center gap-2">
-              <DownloadCloud className="h-6 w-6 shrink-0 text-[#F59E0B]" aria-hidden />
+              <PhosphorPiggyBank weight="duotone" className="h-7 w-7 shrink-0 text-[#F59E0B]" aria-hidden />
               <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">
                 {t('صناديق الادخار', 'Savings funds')}
               </h2>
@@ -462,7 +462,7 @@ export default function GrowthPage() {
           <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
               <div className="flex min-w-0 items-center gap-2">
-                <DownloadCloud className="h-6 w-6 shrink-0 text-[#F59E0B]" aria-hidden />
+                <Bank weight="duotone" className="h-7 w-7 shrink-0 text-[#F59E0B]" aria-hidden />
                 <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">
                   {t('الودائع والعوائد الثابتة', 'Fixed deposits & returns')}
                 </h2>
@@ -545,7 +545,7 @@ export default function GrowthPage() {
           <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
             <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
               <div className="flex min-w-0 items-center gap-2">
-                <DownloadCloud className="h-6 w-6 shrink-0 text-[#F59E0B]" aria-hidden />
+                <Buildings weight="duotone" className="h-7 w-7 shrink-0 text-[#F59E0B]" aria-hidden />
                 <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">{t('الأصول الثابتة', 'Fixed assets')}</h2>
               </div>
               <button
