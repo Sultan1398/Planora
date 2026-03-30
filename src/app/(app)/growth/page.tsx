@@ -7,11 +7,10 @@ import {
   ArrowUpRight,
   Loader2,
   Pencil,
-  PiggyBank,
   Plus,
   Trash2,
 } from 'lucide-react'
-import { Vault, PiggyBank as PhosphorPiggyBank, Bank, Buildings } from '@phosphor-icons/react'
+import { Vault, Money as MoneyBag, Bank, Buildings, CaretUp, CaretDown } from '@phosphor-icons/react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { usePeriod } from '@/contexts/PeriodContext'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -57,6 +56,16 @@ export default function GrowthPage() {
   const [editingDeposit, setEditingDeposit] = useState<FixedDeposit | null>(null)
   const [assetModalOpen, setAssetModalOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<FixedAsset | null>(null)
+
+  // حالات فتح وإغلاق الأقسام
+  const [isSavingsOpen, setIsSavingsOpen] = useState(true)
+  const [isDepositsOpen, setIsDepositsOpen] = useState(true)
+  const [isAssetsOpen, setIsAssetsOpen] = useState(true)
+
+  // حساب الإجماليات للأقسام الثلاثة
+  const totalSavings = goals.reduce((acc, g) => acc + Number(g.current_amount || 0), 0)
+  const totalDeposits = fixedDeposits.reduce((acc, d) => acc + Number(d.amount || 0), 0)
+  const totalAssets = fixedAssets.reduce((acc, a) => acc + Number(a.estimated_value || 0), 0)
 
   const namedLabel = useCallback(
     (nameAr: string, nameEn: string) => (locale === 'ar' ? nameAr : nameEn),
@@ -268,81 +277,122 @@ export default function GrowthPage() {
         </div>
       ) : null}
 
-      {/* محفظة النمو الداخلية */}
-      <div className="mb-10 flex flex-col justify-between gap-y-6 rounded-3xl border border-[#E5E7EB] bg-white p-6 shadow-sm md:flex-row md:items-center md:p-8">
-        <div>
-          <div className="mb-2 flex items-center gap-x-2">
-            <Vault weight="duotone" className="h-6 w-6 text-[#2563EB]" aria-hidden />
-            <p className="text-sm font-medium text-[#6B7280]">
-              {t('رصيد محفظة النمو', 'Growth wallet balance')}
+      {/* محفظة النمو الداخلية ولوحة الإجماليات */}
+      <div className="mb-10 flex flex-col overflow-hidden rounded-3xl border border-[#E5E7EB] bg-white shadow-sm">
+        {/* الجزء العلوي: الرصيد والأزرار */}
+        <div className="flex flex-col justify-between gap-y-6 p-6 md:flex-row md:items-center md:p-8">
+          <div>
+            <div className="mb-2 flex items-center gap-x-2">
+              <Vault weight="duotone" className="h-6 w-6 text-[#2563EB]" aria-hidden />
+              <p className="text-sm font-medium text-[#6B7280]">
+                {t('رصيد محفظة النمو', 'Growth wallet balance')}
+              </p>
+            </div>
+            <h2 className="text-4xl font-bold text-[#1F2937] md:text-5xl" dir="ltr">
+              {formatMoney(growthWalletBalance, locale)}{' '}
+              <span className="text-2xl font-normal text-[#6B7280]">{t('ر.س', 'SAR')}</span>
+            </h2>
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={() => {
+                setWalletTxMode('withdrawal')
+                setWalletTxOpen(true)
+              }}
+              className="flex flex-1 items-center justify-center gap-x-2 rounded-xl border border-[#2563EB]/20 bg-[#2563EB]/10 px-6 py-3 text-sm font-bold text-[#2563EB] transition-colors hover:bg-[#2563EB]/20 md:flex-none"
+            >
+              <ArrowLeft className="h-4 w-4 rotate-[135deg]" aria-hidden />
+              {t('استرجاع للمحفظة', 'Withdraw to Wallet')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWalletTxMode('deposit')
+                setWalletTxOpen(true)
+              }}
+              className="flex flex-1 items-center justify-center gap-x-2 rounded-xl bg-[#2563EB] px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8] md:flex-none"
+            >
+              <Plus className="h-5 w-5" aria-hidden />
+              {t('إيداع من المحفظة', 'Deposit from Wallet')}
+            </button>
+          </div>
+        </div>
+
+        {/* الجزء السفلي: إجماليات الأقسام */}
+        <div className="grid grid-cols-1 divide-y border-t border-[#E5E7EB] bg-gray-50 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:rtl:divide-x-reverse">
+          <div className="px-6 py-4">
+            <p className="text-xs font-medium text-[#6B7280]">{t('إجمالي صناديق الادخار', 'Total Savings')}</p>
+            <p className="mt-1 text-lg font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalSavings, locale)}
             </p>
           </div>
-          <h2 className="text-4xl font-bold text-[#1F2937] md:text-5xl" dir="ltr">
-            {formatMoney(growthWalletBalance, locale)}{' '}
-            <span className="text-2xl font-normal text-[#6B7280]">
-              {t('ر.س', 'SAR')}
-            </span>
-          </h2>
-        </div>
-        
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button 
-            onClick={() => { setWalletTxMode('withdrawal'); setWalletTxOpen(true); }}
-            className="flex flex-1 items-center justify-center gap-x-2 rounded-xl border border-[#2563EB]/20 bg-[#2563EB]/10 px-6 py-3 text-sm font-bold text-[#2563EB] transition-colors hover:bg-[#2563EB]/20 md:flex-none"
-          >
-            <ArrowLeft className="h-4 w-4 rotate-[135deg]" aria-hidden />
-            {t('استرجاع للمحفظة', 'Withdraw to Wallet')}
-          </button>
-          <button 
-            onClick={() => { setWalletTxMode('deposit'); setWalletTxOpen(true); }}
-            className="flex flex-1 items-center justify-center gap-x-2 rounded-xl bg-[#2563EB] px-6 py-3 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8] md:flex-none"
-          >
-            <Plus className="h-5 w-5" aria-hidden />
-            {t('إيداع من المحفظة', 'Deposit from Wallet')}
-          </button>
+          <div className="px-6 py-4">
+            <p className="text-xs font-medium text-[#6B7280]">{t('إجمالي الودائع والعوائد', 'Total Deposits')}</p>
+            <p className="mt-1 text-lg font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalDeposits, locale)}
+            </p>
+          </div>
+          <div className="px-6 py-4">
+            <p className="text-xs font-medium text-[#6B7280]">{t('إجمالي الأصول الثابتة', 'Total Fixed Assets')}</p>
+            <p className="mt-1 text-lg font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalAssets, locale)}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div
-        className={cn(
-          'grid grid-cols-1 gap-8 xl:grid-cols-2 xl:gap-10',
-          locale === 'ar' ? 'text-right' : 'text-left'
-        )}
-      >
+      <div className={cn('flex flex-col gap-8', locale === 'ar' ? 'text-right' : 'text-left')}>
         {/* صناديق الادخار */}
-        <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
-            <div className="flex min-w-0 items-center gap-2">
-              <PhosphorPiggyBank weight="duotone" className="h-7 w-7 shrink-0 text-[#F59E0B]" aria-hidden />
-              <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">
+        <section className="rounded-3xl border border-[#E5E7EB] bg-white p-2 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              onClick={() => setIsSavingsOpen((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+              aria-expanded={isSavingsOpen}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10">
+                <MoneyBag weight="duotone" className="h-6 w-6 text-[#F59E0B]" aria-hidden />
+              </div>
+              <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
                 {t('صناديق الادخار', 'Savings funds')}
               </h2>
-            </div>
+              {isSavingsOpen ? (
+                <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              ) : (
+                <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              )}
+            </button>
             <button
               type="button"
               onClick={openNewGoal}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB]/10 px-4 py-2 text-sm font-bold text-[#2563EB] transition-colors hover:bg-[#2563EB]/20"
             >
               <Plus className="h-4 w-4" aria-hidden />
-              {t('+ هدف جديد', '+ New goal')}
+              {t('إضافة هدف', 'Add Goal')}
             </button>
           </div>
 
-          {goals.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] px-6 py-12 text-center">
-              <PiggyBank className="mx-auto mb-3 h-10 w-10 text-[#9CA3AF]" aria-hidden />
-              <p className="mb-4 text-[#6B7280]">{t('لا توجد أهداف ادخار بعد', 'No savings goals yet')}</p>
-              <button
-                type="button"
-                onClick={openNewGoal}
-                className="rounded-full bg-[#2563EB] px-5 py-2 text-sm font-bold text-white hover:bg-[#1D4ED8]"
-              >
-                {t('إضافة هدف', 'Add a goal')}
-              </button>
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-5" role="list">
-              {goals.map((g) => {
+          {isSavingsOpen && (
+            <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+              {goals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 py-12 text-center">
+                  <MoneyBag weight="duotone" className="mb-4 h-16 w-16 text-gray-300" aria-hidden />
+                  <p className="mb-5 font-medium text-gray-500">
+                    {t('لا توجد أهداف ادخارية مسجلة حالياً.', 'No savings goals registered yet.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openNewGoal}
+                    className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  >
+                    {t('+ أضف هدفك الأول', '+ Add your first goal')}
+                  </button>
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-4" role="list">
+                  {goals.map((g) => {
                 const target = Number(g.target_amount)
                 const cur = Number(g.current_amount)
                 const pct = target > 0 ? Math.min(100, (cur / target) * 100) : 0
@@ -351,7 +401,7 @@ export default function GrowthPage() {
                 return (
                   <li
                     key={g.id}
-                    className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+                    className="rounded-2xl border border-[#E5E7EB] bg-white p-4 shadow-sm transition-shadow hover:shadow-md sm:p-5"
                   >
                     <div className="flex flex-col gap-3 border-b border-[#E5E7EB] pb-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
@@ -452,36 +502,64 @@ export default function GrowthPage() {
                     </div>
                   </li>
                 )
-              })}
-            </ul>
+                  })}
+                </ul>
+              )}
+            </div>
           )}
         </section>
 
-        <div className="flex flex-col gap-8">
-          {/* الودائع */}
-          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <Bank weight="duotone" className="h-7 w-7 shrink-0 text-[#F59E0B]" aria-hidden />
-                <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">
-                  {t('الودائع والعوائد الثابتة', 'Fixed deposits & returns')}
-                </h2>
+        {/* الودائع */}
+        <section className="rounded-3xl border border-[#E5E7EB] bg-white p-2 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              onClick={() => setIsDepositsOpen((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+              aria-expanded={isDepositsOpen}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10">
+                <Bank weight="duotone" className="h-6 w-6 text-[#F59E0B]" aria-hidden />
               </div>
-              <button
-                type="button"
-                onClick={openNewDeposit}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                {t('+ وديعة جديدة', '+ New deposit')}
-              </button>
-            </div>
-            <div className="flex flex-col gap-4">
-              {fixedDeposits.length === 0 ? (
-                <p className="py-4 text-center text-[#6B7280]">{t('لا توجد ودائع حالياً.', 'No deposits yet.')}</p>
+              <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
+                {t('الودائع والعوائد الثابتة', 'Fixed deposits & returns')}
+              </h2>
+              {isDepositsOpen ? (
+                <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
               ) : (
-                fixedDeposits.map((deposit) => (
-                  <div key={deposit.id} className="rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-5">
+                <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={openNewDeposit}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB]/10 px-4 py-2 text-sm font-bold text-[#2563EB] transition-colors hover:bg-[#2563EB]/20"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              {t('إضافة وديعة', 'Add Deposit')}
+            </button>
+          </div>
+
+          {isDepositsOpen && (
+            <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+              {fixedDeposits.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 py-12 text-center">
+                  <Bank weight="duotone" className="mb-4 h-16 w-16 text-gray-300" aria-hidden />
+                  <p className="mb-5 font-medium text-gray-500">
+                    {t('لا توجد ودائع مسجلة حالياً.', 'No fixed deposits registered yet.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openNewDeposit}
+                    className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  >
+                    {t('+ أضف وديعتك الأولى', '+ Add your first deposit')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {fixedDeposits.map((deposit) => (
+                  <div key={deposit.id} className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm">
                     <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <h3 className="text-start text-lg font-bold text-[#1F2937]">
                         {namedLabel(deposit.name_ar, deposit.name_en)}
@@ -536,37 +614,66 @@ export default function GrowthPage() {
                       </span>
                     </p>
                   </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
-          </section>
+          )}
+        </section>
 
-          {/* الأصول الثابتة */}
-          <section className="rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:p-6">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
-              <div className="flex min-w-0 items-center gap-2">
-                <Buildings weight="duotone" className="h-7 w-7 shrink-0 text-[#F59E0B]" aria-hidden />
-                <h2 className="text-xl font-bold text-[#1F2937] sm:text-2xl">{t('الأصول الثابتة', 'Fixed assets')}</h2>
+        {/* الأصول الثابتة */}
+        <section className="rounded-3xl border border-[#E5E7EB] bg-white p-2 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              onClick={() => setIsAssetsOpen((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+              aria-expanded={isAssetsOpen}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10">
+                <Buildings weight="duotone" className="h-6 w-6 text-[#F59E0B]" aria-hidden />
               </div>
-              <button
-                type="button"
-                onClick={openNewAsset}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
-              >
-                <Plus className="h-4 w-4" aria-hidden />
-                {t('+ أصل جديد', '+ New asset')}
-              </button>
-            </div>
-            <div className="flex flex-col gap-4">
-              {fixedAssets.length === 0 ? (
-                <p className="py-4 text-center text-[#6B7280]">
-                  {t('لا توجد أصول ثابتة حالياً.', 'No fixed assets yet.')}
-                </p>
+              <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
+                {t('الأصول الثابتة', 'Fixed assets')}
+              </h2>
+              {isAssetsOpen ? (
+                <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
               ) : (
-                fixedAssets.map((asset) => (
+                <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={openNewAsset}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#2563EB]/10 px-4 py-2 text-sm font-bold text-[#2563EB] transition-colors hover:bg-[#2563EB]/20"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              {t('إضافة أصل', 'Add Asset')}
+            </button>
+          </div>
+
+          {isAssetsOpen && (
+            <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+              {fixedAssets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 py-12 text-center">
+                  <Buildings weight="duotone" className="mb-4 h-16 w-16 text-gray-300" aria-hidden />
+                  <p className="mb-5 font-medium text-gray-500">
+                    {t('لا توجد أصول ثابتة مسجلة حالياً.', 'No fixed assets registered yet.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openNewAsset}
+                    className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                  >
+                    {t('+ أضف أصلك الأول', '+ Add your first asset')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {fixedAssets.map((asset) => (
                   <div
                     key={asset.id}
-                    className="flex flex-col justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] p-5 sm:flex-row sm:items-start"
+                    className="flex flex-col justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-white p-5 shadow-sm sm:flex-row sm:items-start"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -616,11 +723,12 @@ export default function GrowthPage() {
                       {formatMoney(Number(asset.estimated_value), locale)} {t('ر.س', 'SAR')}
                     </div>
                   </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
-          </section>
-        </div>
+          )}
+        </section>
       </div>
 
       <SavingsGoalFormModal
