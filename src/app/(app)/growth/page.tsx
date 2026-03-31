@@ -130,7 +130,6 @@ export default function GrowthPage() {
       setGoals(goalsRes.error ? [] : ((goalsRes.data as SavingsGoal[] | null) ?? []))
       setFixedDeposits(depositsRes.error ? [] : ((depositsRes.data as FixedDeposit[] | null) ?? []))
       setFixedAssets(assetsRes.error ? [] : ((assetsRes.data as FixedAsset[] | null) ?? []))
-
       setLoading(false)
     },
     []
@@ -248,17 +247,6 @@ export default function GrowthPage() {
     void fetchGrowthData()
   }
 
-  if (loading) {
-    return (
-      <div className="mx-auto flex min-h-[50vh] max-w-6xl flex-1 flex-col items-center justify-center px-4 py-16 lg:px-6">
-        <Loader2 className="h-10 w-10 animate-spin text-[#2563EB]" aria-hidden />
-        <p className="mt-4 text-lg font-semibold text-[#2563EB]">
-          {t('جاري تحميل بيانات النمو...', 'Loading growth data...')}
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className="mx-auto max-w-6xl p-4 lg:p-6">
       <PageHeader
@@ -271,14 +259,20 @@ export default function GrowthPage() {
         }
       />
 
-      {fetchError ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {fetchError}
+      {loading ? (
+        <div className="mt-8 flex items-center justify-center rounded-2xl border border-gray-200 bg-white py-16 text-sm text-gray-500 shadow-sm">
+          {t('جارِ التحميل...', 'Loading...')}
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-8 flex flex-col gap-8">
+          {fetchError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {fetchError}
+            </div>
+          ) : null}
 
       {/* محفظة النمو الداخلية ولوحة الإجماليات */}
-      <div className="mb-10 flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm ring-1 ring-black/[0.02]">
+      <div className="flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm ring-1 ring-black/[0.02]">
         {/* الجزء العلوي: الرصيد والأزرار */}
         <div className="relative flex flex-col justify-between gap-4 bg-gradient-to-b from-blue-50/40 to-white p-5 md:flex-row md:items-center md:p-6">
           <div className="pointer-events-none absolute -top-10 -end-10 h-28 w-28 rounded-full bg-blue-100/50 blur-2xl" />
@@ -735,6 +729,8 @@ export default function GrowthPage() {
           )}
         </section>
       </div>
+        </div>
+      )}
 
       <SavingsGoalFormModal
         open={formOpen}
