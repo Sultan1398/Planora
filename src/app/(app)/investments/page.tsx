@@ -17,6 +17,8 @@ import { InvestmentDealModal } from '@/components/investments/InvestmentDealModa
 import { InvestmentCloseModal } from '@/components/investments/InvestmentCloseModal'
 import { InvestmentActivityLogModal } from '@/components/investments/InvestmentActivityLogModal'
 import { Pencil, ArrowDownLeft, ArrowUpRight, Trash2, Loader2, Power, ScrollText } from 'lucide-react'
+import { Wallet, ChartLineUp, CheckCircle, CaretUp, CaretDown } from '@phosphor-icons/react'
+import { cn } from '@/lib/utils'
 
 const investmentsNav = getAppNavItem('/investments')
 
@@ -30,6 +32,8 @@ export default function InvestmentsPage() {
 
   const [walletNow, setWalletNow] = useState<number | null>(null)
   const [internalNow, setInternalNow] = useState<number | null>(null)
+  const [isOpenDealsOpen, setIsOpenDealsOpen] = useState(true)
+  const [isClosedDealsOpen, setIsClosedDealsOpen] = useState(true)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -87,6 +91,8 @@ export default function InvestmentsPage() {
 
   const openDeals = useMemo(() => investments.filter((x) => x.status === 'open'), [investments])
   const closedDeals = useMemo(() => investments.filter((x) => x.status === 'closed'), [investments])
+  const availableCash = walletNow ?? 0
+  const portfolioValue = internalNow ?? 0
 
   const minD = useMemo(() => dateToLocalISODate(periodDates.start), [periodDates.start])
   const maxD = useMemo(() => dateToLocalISODate(periodDates.end), [periodDates.end])
@@ -103,6 +109,7 @@ export default function InvestmentsPage() {
     }
     return sum
   }, [closedDeals, minD, maxD])
+  const totalProfit = profitLossInPeriod
 
   function investmentPathMeta(type: Investment['type']) {
     /** يطابق DEAL_CATEGORIES في InvestmentDealModal: فوركس→other، عقار→partnership، مشاريع→freelance */
@@ -238,95 +245,120 @@ export default function InvestmentsPage() {
         </div>
       ) : (
         <>
-          <div className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm">
-            <div className="grid grid-cols-1 lg:grid-cols-3 lg:items-center lg:divide-x lg:divide-border lg:rtl:divide-x-reverse">
-              <div className="py-1 lg:px-4">
-                <div className="flex flex-col items-center text-center">
-                  <p className="text-sm text-muted font-medium">{t('النقد المتاح (الحالي)', 'Available wallet cash (now)')}</p>
-                  <p className="text-2xl font-bold text-brand tabular-nums" dir="ltr">
-                    {walletNow == null ? '—' : formatMoney(walletNow, locale)}
-                  </p>
+          {/* محفظة الاستثمارات ولوحة الإجماليات */}
+          <div className="mb-10 flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+            {/* الجزء العلوي: الرصيد والأزرار */}
+            <div className="flex flex-col justify-between gap-6 p-6 md:flex-row md:items-center md:p-8">
+              <div className="flex flex-col items-start">
+                <div className="mb-2 flex items-center gap-x-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50">
+                    <Wallet weight="duotone" className="h-5 w-5 text-indigo-600" aria-hidden />
+                  </div>
+                  <h2 className="text-sm font-bold text-gray-500">
+                    {t('النقد المتاح للاستثمار', 'Available Cash for Investment')}
+                  </h2>
+                </div>
+                <div className="mt-2 flex items-baseline gap-x-2">
+                  <span className="text-4xl font-extrabold tracking-tight text-gray-900 md:text-5xl" dir="ltr">
+                    {formatMoney(availableCash, locale)}
+                  </span>
                 </div>
               </div>
 
-              <div className="py-1 lg:px-4">
-                <div className="flex flex-col items-center text-center">
-                  <p className="text-sm text-muted font-medium">{t('محفظة الاستثمارات', 'Investments wallet')}</p>
-                  <p className="text-2xl font-bold text-violet-600 tabular-nums" dir="ltr">
-                    {internalNow == null ? '—' : formatMoney(internalNow, locale)}
-                  </p>
-                </div>
+              <div className="mt-4 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center md:mt-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransferMode('withdrawal')
+                    setTransferOpen(true)
+                  }}
+                  className="flex items-center justify-center gap-x-2 rounded-xl border border-gray-200 bg-white px-6 py-3.5 text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                >
+                  <ArrowUpRight className="h-4 w-4" aria-hidden />
+                  {t('سحب للمحفظة', 'Withdraw to Wallet')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTransferMode('deposit')
+                    setTransferOpen(true)
+                  }}
+                  className="flex items-center justify-center gap-x-2 rounded-xl bg-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-indigo-700"
+                >
+                  <ArrowDownLeft className="h-5 w-5" aria-hidden />
+                  {t('إيداع للاستثمارات', 'Deposit to Investments')}
+                </button>
+              </div>
+            </div>
+
+            {/* الجزء السفلي: إجماليات الاستثمارات */}
+            <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-2">
+              <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+                <p className="text-sm font-medium text-gray-500">{t('قيمة المحفظة الاستثمارية', 'Portfolio Value')}</p>
+                <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+                  {formatMoney(portfolioValue, locale)}
+                </p>
               </div>
 
-              <div className="py-1 lg:px-4">
-                <div className="flex flex-col items-center text-center">
-                  <p className="text-sm text-muted font-medium">{t('الربح/الخسارة', 'Profit/Loss')}</p>
-                  <p className="text-2xl font-bold tabular-nums" dir="ltr">
-                    <span className={profitLossInPeriod >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                      {formatMoney(profitLossInPeriod, locale)}
-                    </span>
-                  </p>
-                </div>
+              <div className="flex flex-col items-center justify-center p-6 text-center sm:border-s border-gray-200">
+                <p className="text-sm font-medium text-gray-500">{t('الربح/الخسارة', 'Profit/Loss')}</p>
+                <p className={cn('mt-2 text-2xl font-bold', totalProfit >= 0 ? 'text-green-600' : 'text-red-600')} dir="ltr">
+                  {totalProfit > 0 ? '+' : ''}
+                  {formatMoney(totalProfit, locale)}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="mb-5 rounded-2xl border border-border bg-white p-4 shadow-sm">
-            <div className="grid w-full grid-cols-2 gap-2 sm:gap-2.5 lg:grid-cols-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setTransferMode('deposit')
-                  setTransferOpen(true)
-                }}
-                className="inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-2 text-xs font-medium leading-tight text-white shadow-sm hover:bg-brand-dark transition-colors sm:gap-2 sm:px-2.5 sm:text-sm"
-              >
-                <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-                <span className="min-w-0 text-center">{t('إيداع للاستثمارات', 'Deposit')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setTransferMode('withdrawal')
-                  setTransferOpen(true)
-                }}
-                className="inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-rose-700/25 bg-rose-600 px-2 text-xs font-medium leading-tight text-white shadow-sm hover:bg-rose-700 transition-colors sm:gap-2 sm:px-2.5 sm:text-sm"
-              >
-                <ArrowUpRight className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
-                <span className="min-w-0 text-center">{t('سحب للمحفظة', 'Withdraw')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={openNewDeal}
-                className="inline-flex h-10 w-full min-w-0 items-center justify-center rounded-xl bg-emerald-600 px-2 text-xs font-medium leading-tight text-white shadow-sm hover:bg-emerald-700 transition-colors sm:px-2.5 sm:text-sm"
-              >
-                <span className="min-w-0 text-center">{t('+ صفقة جديدة', '+ New deal')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActivityLogOpen(true)}
-                className="inline-flex h-10 w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-white px-2 text-xs font-medium leading-tight text-slate-700 shadow-sm hover:bg-surface transition-colors sm:gap-2 sm:px-2.5 sm:text-sm"
-              >
-                <ScrollText className="h-3.5 w-3.5 shrink-0 text-brand sm:h-4 sm:w-4" />
-                <span className="min-w-0 text-center">{t('سجل عمليات الفترة', 'Period activity log')}</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="h-full rounded-2xl border border-border bg-white p-4 shadow-sm">
-              <div className="mb-3">
-                <h2 className="font-bold text-slate-900">{t('صفقات مفتوحة', 'Open deals')}</h2>
+          <div className={cn('flex flex-col gap-8', locale === 'ar' ? 'text-right' : 'text-left')}>
+            <section className="rounded-3xl border border-[#E5E7EB] bg-white p-2 shadow-sm sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <button
+                  type="button"
+                  onClick={() => setIsOpenDealsOpen((v) => !v)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+                  aria-expanded={isOpenDealsOpen}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+                    <ChartLineUp weight="duotone" className="h-6 w-6 text-indigo-600" aria-hidden />
+                  </div>
+                  <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">{t('صفقات مفتوحة', 'Open deals')}</h2>
+                  {isOpenDealsOpen ? (
+                    <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+                  ) : (
+                    <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+                  )}
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={openNewDeal}
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                  >
+                    {t('+ صفقة جديدة', '+ New deal')}
+                  </button>
+                </div>
               </div>
 
-              {openDeals.length === 0 ? (
-                <div className="px-2 py-10 text-center text-muted">{t('لا توجد صفقات مفتوحة حالياً', 'No open deals right now')}</div>
-              ) : (
-                <ul className="space-y-3">
-                  {openDeals.map((d) => {
+              {isOpenDealsOpen && (
+                <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+                  {openDeals.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 py-12 text-center">
+                      <ChartLineUp weight="duotone" className="mb-4 h-16 w-16 text-gray-300" aria-hidden />
+                      <p className="mb-5 font-medium text-gray-500">
+                        {t('لا توجد صفقات مفتوحة حالياً', 'No open deals right now')}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={openNewDeal}
+                        className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                      >
+                        {t('+ أضف صفقتك الأولى', '+ Add your first deal')}
+                      </button>
+                    </div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {openDeals.map((d) => {
                     const path = investmentPathMeta(d.type)
                     const entryTotal = Number(d.entry_amount)
                     return (
@@ -399,20 +431,50 @@ export default function InvestmentsPage() {
                       </li>
                     )
                   })}
-                </ul>
+                    </ul>
+                  )}
+                </div>
               )}
-            </div>
+            </section>
 
-            <div className="h-full rounded-2xl border border-border bg-white p-4 shadow-sm">
-              <div className="mb-3">
-                <h2 className="font-bold text-slate-900">{t('صفقات مغلقة', 'Closed deals')}</h2>
+            <section className="rounded-3xl border border-[#E5E7EB] bg-white p-2 shadow-sm sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <button
+                  type="button"
+                  onClick={() => setIsClosedDealsOpen((v) => !v)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+                  aria-expanded={isClosedDealsOpen}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
+                    <CheckCircle weight="duotone" className="h-6 w-6 text-emerald-600" aria-hidden />
+                  </div>
+                  <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">{t('صفقات مغلقة', 'Closed deals')}</h2>
+                  {isClosedDealsOpen ? (
+                    <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+                  ) : (
+                    <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivityLogOpen(true)}
+                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-surface"
+                >
+                  <ScrollText className="h-4 w-4 text-brand" />
+                  {t('سجل الفترة', 'Activity log')}
+                </button>
               </div>
 
-              {closedDeals.length === 0 ? (
-                <div className="px-2 py-10 text-center text-muted">{t('لا توجد صفقات مغلقة بعد', 'No closed deals yet')}</div>
-              ) : (
-                <ul className="space-y-3">
-                  {closedDeals.map((d) => {
+              {isClosedDealsOpen && (
+                <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+                  {closedDeals.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 py-12 text-center">
+                      <CheckCircle weight="duotone" className="mb-4 h-16 w-16 text-gray-300" aria-hidden />
+                      <p className="font-medium text-gray-500">{t('لا توجد صفقات مغلقة بعد', 'No closed deals yet')}</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {closedDeals.map((d) => {
                     const entry = Number(d.entry_amount)
                     const exit = d.exit_amount == null ? 0 : Number(d.exit_amount)
                     const pl = exit - entry
@@ -486,9 +548,11 @@ export default function InvestmentsPage() {
                       </li>
                     )
                   })}
-                </ul>
+                    </ul>
+                  )}
+                </div>
               )}
-            </div>
+            </section>
           </div>
         </>
       )}
