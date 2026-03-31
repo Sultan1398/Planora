@@ -154,7 +154,7 @@ export default function InflowPage() {
       {/* بطاقة إجمالي الدخل والتفاصيل */}
       <div className="mb-8 flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
         {/* الجزء العلوي: إجمالي الدخل والأزرار */}
-        <div className="flex flex-col justify-between gap-6 p-6 md:flex-row md:items-center md:p-8">
+        <div className="flex flex-col justify-between gap-4 p-5 md:flex-row md:items-center">
           <div className="flex flex-col items-start">
             <div className="mb-2 flex items-center gap-x-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50">
@@ -185,7 +185,7 @@ export default function InflowPage() {
 
         {/* الجزء السفلي: تفاصيل الدخل */}
         <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-3">
-          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
             <p className="text-sm font-medium text-gray-500">
               {t('الرصيد المرحل من السابق', 'Carried Over Balance')}
             </p>
@@ -193,13 +193,13 @@ export default function InflowPage() {
               {formatMoney(rolledOverBalance, locale)}
             </p>
           </div>
-          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
             <p className="text-sm font-medium text-gray-500">{t('دخل ثابت', 'Fixed Income')}</p>
             <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
               {formatMoney(totals.fixed, locale)}
             </p>
           </div>
-          <div className="flex flex-col items-center justify-center p-6 text-center sm:border-s border-gray-200">
+          <div className="flex flex-col items-center justify-center p-4 text-center sm:border-s border-gray-200">
             <p className="text-sm font-medium text-gray-500">{t('دخل متغير', 'Variable Income')}</p>
             <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
               {formatMoney(totals.variable, locale)}
@@ -219,7 +219,7 @@ export default function InflowPage() {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
               <ListDashes weight="duotone" className="h-6 w-6 text-[#2563EB]" aria-hidden />
             </div>
-            <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
+            <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">
               {t('قائمة المصادر', 'Sources List')} ({totals.count})
             </h2>
             {isSourcesOpen ? (

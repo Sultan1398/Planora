@@ -281,7 +281,7 @@ export default function InvestmentsPage() {
           {/* محفظة الاستثمارات ولوحة الإجماليات */}
           <div className="mb-10 flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
             {/* الجزء العلوي: الرصيد والأزرار */}
-            <div className="flex flex-col justify-between gap-6 p-6 md:flex-row md:items-center md:p-8">
+            <div className="flex flex-col justify-between gap-4 p-5 md:flex-row md:items-center">
               <div className="flex flex-col items-start">
                 <div className="mb-2 flex items-center gap-x-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50">
@@ -326,21 +326,21 @@ export default function InvestmentsPage() {
 
             {/* الجزء السفلي: إجماليات الاستثمارات */}
             <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-3">
-              <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+              <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
                 <p className="text-sm font-medium text-indigo-600">{t('قيمة المحفظة الاستثمارية', 'Portfolio Value')}</p>
                 <p className="mt-2 text-2xl font-bold text-indigo-700" dir="ltr">
                   {formatMoney(portfolioValue, locale)}
                 </p>
               </div>
 
-              <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0 sm:border-s border-gray-200">
+              <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0 sm:border-s border-gray-200">
                 <p className="text-sm font-medium text-indigo-600">{t('السيولة النقدية', 'Cash Liquidity')}</p>
                 <p className="mt-2 text-2xl font-bold text-indigo-700" dir="ltr">
                   {formatMoney(liquidityCash, locale)}
                 </p>
               </div>
 
-              <div className="flex flex-col items-center justify-center p-6 text-center sm:border-s border-gray-200">
+              <div className="flex flex-col items-center justify-center p-4 text-center sm:border-s border-gray-200">
                 <p className="text-sm font-medium text-indigo-600">{t('الربح/الخسارة', 'Profit/Loss')}</p>
                 <p className={cn('mt-2 text-2xl font-bold', totalProfit >= 0 ? 'text-green-600' : 'text-red-600')} dir="ltr">
                   {totalProfit > 0 ? '+' : ''}
@@ -362,7 +362,7 @@ export default function InvestmentsPage() {
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
                     <ChartLineUp weight="duotone" className="h-6 w-6 text-indigo-600" aria-hidden />
                   </div>
-                  <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">{t('صفقات مفتوحة', 'Open deals')}</h2>
+                  <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">{t('صفقات مفتوحة', 'Open deals')}</h2>
                   {isOpenDealsOpen ? (
                     <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
                   ) : (
@@ -488,7 +488,7 @@ export default function InvestmentsPage() {
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
                     <CheckCircle weight="duotone" className="h-6 w-6 text-emerald-600" aria-hidden />
                   </div>
-                  <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">{t('صفقات مغلقة', 'Closed deals')}</h2>
+                  <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">{t('صفقات مغلقة', 'Closed deals')}</h2>
                   {isClosedDealsOpen ? (
                     <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
                   ) : (
