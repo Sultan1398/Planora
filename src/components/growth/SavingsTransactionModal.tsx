@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
 import type { SavingsGoal } from '@/types/database'
 import { dateToLocalISODate, defaultDateInPeriod } from '@/lib/date-local'
-import { computeAvailableCash } from '@/lib/cash-liquidity'
 import { formatMoney } from '@/lib/format-money'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -34,7 +33,7 @@ export function SavingsTransactionModal({
   const [dateStr, setDateStr] = useState(() => defaultDateInPeriod(periodStart, periodEnd))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [availableCash, setAvailableCash] = useState<number | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
 
   const minD = dateToLocalISODate(periodStart)
   const maxD = dateToLocalISODate(periodEnd)
@@ -46,23 +45,21 @@ export function SavingsTransactionModal({
     setDateStr(defaultDateInPeriod(periodStart, periodEnd))
 
     let cancelled = false
-    if (mode === 'deposit') {
-      ;(async () => {
-        const supabase = createClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (!user || cancelled) return
-        try {
-          const a = await computeAvailableCash(supabase, user.id, minD, maxD)
-          if (!cancelled) setAvailableCash(a)
-        } catch {
-          if (!cancelled) setAvailableCash(null)
-        }
-      })()
-    } else {
-      setAvailableCash(null)
-    }
+    ;(async () => {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user || cancelled) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: walletData, error: walletError } = await (supabase as any).from('growth_wallets').select('balance').single()
+      if (cancelled) return
+      if (!walletError && walletData) {
+        setWalletBalance(Number(walletData.balance) || 0)
+      } else {
+        setWalletBalance(0)
+      }
+    })()
     return () => {
       cancelled = true
     }
@@ -113,34 +110,88 @@ export function SavingsTransactionModal({
         return
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: walletData, error: walletError } = await (supabase as any).from('growth_wallets').select('balance').single()
+      const currentWalletBalance = !walletError && walletData ? Number(walletData.balance) || 0 : 0
+
       if (mode === 'withdrawal') {
         if (num > current + 0.0001) {
           setError(t('المبلغ أكبر من رصيد الهدف', 'Amount exceeds the goal balance'))
           return
         }
       } else {
-        const available = await computeAvailableCash(supabase, user.id, minD, maxD)
-        if (num > available + 0.0001) {
+        if (num > currentWalletBalance + 0.0001) {
           setError(
             t(
-              'لا توجد سيولة كافية في المحفظة لهذا الإيداع.',
-              'Insufficient wallet balance for this deposit.'
+              'لا يوجد رصيد كافٍ في محفظة النمو لهذا الإيداع.',
+              'Insufficient Growth Wallet balance for this deposit.'
             )
           )
           return
         }
       }
 
-      const { error: insErr } = await supabase.from('savings_transactions').insert({
-        user_id: user.id,
-        goal_id: activeGoal.id,
-        type: mode,
-        amount: num,
-        date: dateStr,
-      })
-      if (insErr) {
-        setError(insErr.message)
-        return
+      if (mode === 'deposit') {
+        // deposit to goal -> withdraw from growth wallet
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+          user_id: user.id,
+          amount: num,
+          transaction_type: 'withdrawal',
+        })
+        if (walletTxErr) {
+          setError(walletTxErr.message)
+          return
+        }
+
+        const { error: insErr } = await supabase.from('savings_transactions').insert({
+          user_id: user.id,
+          goal_id: activeGoal.id,
+          type: mode,
+          amount: num,
+          date: dateStr,
+        })
+        if (insErr) {
+          // compensate wallet if savings insert fails
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('growth_wallet_transactions').insert({
+            user_id: user.id,
+            amount: num,
+            transaction_type: 'deposit',
+          })
+          setError(insErr.message)
+          return
+        }
+      } else {
+        // withdrawal from goal -> deposit to growth wallet
+        const { data: insertedTx, error: insErr } = await supabase
+          .from('savings_transactions')
+          .insert({
+            user_id: user.id,
+            goal_id: activeGoal.id,
+            type: mode,
+            amount: num,
+            date: dateStr,
+          })
+          .select('id')
+          .single()
+        if (insErr) {
+          setError(insErr.message)
+          return
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+          user_id: user.id,
+          amount: num,
+          transaction_type: 'deposit',
+        })
+        if (walletTxErr) {
+          if (insertedTx?.id) {
+            await supabase.from('savings_transactions').delete().eq('id', insertedTx.id)
+          }
+          setError(walletTxErr.message)
+          return
+        }
       }
 
       onSaved()
@@ -193,11 +244,11 @@ export function SavingsTransactionModal({
               {formatMoney(current, locale)}
             </span>
           </p>
-          {mode === 'deposit' && availableCash != null ? (
+          {mode === 'deposit' && walletBalance != null ? (
             <p className="mt-1 text-xs text-muted">
-              {t('السيولة المتاحة في الفترة:', 'Available in period:')}{' '}
+              {t('رصيد محفظة النمو:', 'Growth Wallet balance:')}{' '}
               <span className="font-semibold tabular-nums" dir="ltr">
-                {formatMoney(availableCash, locale)}
+                {formatMoney(walletBalance, locale)}
               </span>
             </p>
           ) : null}
@@ -241,15 +292,15 @@ export function SavingsTransactionModal({
           {mode === 'withdrawal' ? (
             <p className="text-xs text-muted leading-relaxed">
               {t(
-                'يُسجَّل السحب في الفترة الحالية ويُعاد المبلغ إلى السيولة المتاحة في المحفظة (نفس الفترة).',
-                'The withdrawal is recorded in the current period and adds back to your wallet liquidity for this period.'
+                'عند السحب من الهدف، يتم تحويل المبلغ مباشرة إلى رصيد محفظة النمو.',
+                'Withdrawing from this goal transfers the amount directly back to Growth Wallet balance.'
               )}
             </p>
           ) : (
             <p className="text-xs text-muted leading-relaxed">
               {t(
-                'يُخصم الإيداع من السيولة المتاحة في المحفظة ضمن هذه الفترة المالية.',
-                'Deposits reduce available wallet liquidity within this financial period.'
+                'عند الإيداع في الهدف، يتم خصم المبلغ مباشرة من رصيد محفظة النمو.',
+                'Depositing to this goal deducts the amount directly from Growth Wallet balance.'
               )}
             </p>
           )}

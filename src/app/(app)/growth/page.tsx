@@ -184,9 +184,46 @@ export default function GrowthPage() {
 
     setDeletingId(g.id)
     const supabase = createClient()
+    const shouldReturnToWallet = bal > 0.0001
+    if (shouldReturnToWallet) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setDeletingId(null)
+        alert(t('يجب تسجيل الدخول', 'You must be signed in'))
+        return
+      }
+      // return goal balance to growth wallet before closing/deleting it
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+        user_id: user.id,
+        amount: bal,
+        transaction_type: 'deposit',
+      })
+      if (walletTxErr) {
+        setDeletingId(null)
+        alert(walletTxErr.message)
+        return
+      }
+    }
     const { error: delErr } = await deleteSavingsGoalWithOrderedTxRemoval(supabase, g.id)
     setDeletingId(null)
     if (delErr) {
+      if (shouldReturnToWallet) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          // compensate wallet if deletion failed
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('growth_wallet_transactions').insert({
+            user_id: user.id,
+            amount: bal,
+            transaction_type: 'withdrawal',
+          })
+        }
+      }
       alert(delErr.message)
       return
     }
@@ -222,9 +259,37 @@ export default function GrowthPage() {
       return
     setDeletingDepositId(d.id)
     const supabase = createClient()
+    const amount = Number(d.amount || 0)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setDeletingDepositId(null)
+      alert(t('يجب تسجيل الدخول', 'You must be signed in'))
+      return
+    }
+    // return deposit amount to growth wallet on close/delete
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+      user_id: user.id,
+      amount,
+      transaction_type: 'deposit',
+    })
+    if (walletTxErr) {
+      setDeletingDepositId(null)
+      alert(walletTxErr.message)
+      return
+    }
     const { error: delErr } = await supabase.from('fixed_deposits').delete().eq('id', d.id)
     setDeletingDepositId(null)
     if (delErr) {
+      // compensate wallet if deletion fails
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('growth_wallet_transactions').insert({
+        user_id: user.id,
+        amount,
+        transaction_type: 'withdrawal',
+      })
       alert(delErr.message)
       return
     }
@@ -240,9 +305,37 @@ export default function GrowthPage() {
       return
     setDeletingAssetId(a.id)
     const supabase = createClient()
+    const amount = Number(a.estimated_value || 0)
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      setDeletingAssetId(null)
+      alert(t('يجب تسجيل الدخول', 'You must be signed in'))
+      return
+    }
+    // return asset value to growth wallet on close/delete
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+      user_id: user.id,
+      amount,
+      transaction_type: 'deposit',
+    })
+    if (walletTxErr) {
+      setDeletingAssetId(null)
+      alert(walletTxErr.message)
+      return
+    }
     const { error: delErr } = await supabase.from('fixed_assets').delete().eq('id', a.id)
     setDeletingAssetId(null)
     if (delErr) {
+      // compensate wallet if deletion fails
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('growth_wallet_transactions').insert({
+        user_id: user.id,
+        amount,
+        transaction_type: 'withdrawal',
+      })
       alert(delErr.message)
       return
     }

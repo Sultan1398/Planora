@@ -59,7 +59,7 @@ export function FixedDepositModal({ open, onClose, onSaved, edit }: Props) {
       return
     }
     const num = parseFloat(amount.replace(/,/g, ''))
-    if (Number.isNaN(num) || num < 0) {
+    if (Number.isNaN(num) || num <= 0) {
       setError(t('المبلغ غير صالح', 'Invalid amount'))
       return
     }
@@ -87,6 +87,9 @@ export function FixedDepositModal({ open, onClose, onSaved, edit }: Props) {
         setError(t('يجب تسجيل الدخول', 'You must be signed in'))
         return
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: walletData, error: walletError } = await (supabase as any).from('growth_wallets').select('balance').single()
+      const walletBalance = !walletError && walletData ? Number(walletData.balance) || 0 : 0
 
       const row = {
         name_ar: ar || en,
@@ -98,18 +101,81 @@ export function FixedDepositModal({ open, onClose, onSaved, edit }: Props) {
       }
 
       if (edit) {
+        const previousAmount = Number(edit.amount || 0)
+        const delta = num - previousAmount
+        if (delta > 0 && delta > walletBalance + 0.0001) {
+          setError(t('رصيد محفظة النمو غير كافٍ لهذه الزيادة', 'Growth Wallet balance is insufficient for this increase'))
+          return
+        }
+        if (delta > 0) {
+          // withdraw extra from wallet before applying update
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+            user_id: user.id,
+            amount: delta,
+            transaction_type: 'withdrawal',
+          })
+          if (walletTxErr) {
+            setError(walletTxErr.message)
+            return
+          }
+        }
         const { error: up } = await supabase.from('fixed_deposits').update(row).eq('id', edit.id)
         if (up) {
+          if (num > previousAmount) {
+            // compensate wallet on failed update
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any).from('growth_wallet_transactions').insert({
+              user_id: user.id,
+              amount: num - previousAmount,
+              transaction_type: 'deposit',
+            })
+          }
           setError(up.message)
           return
         }
+        if (delta < 0) {
+          // return released amount to wallet after successful update
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+            user_id: user.id,
+            amount: Math.abs(delta),
+            transaction_type: 'deposit',
+          })
+          if (walletTxErr) {
+            setError(walletTxErr.message)
+            return
+          }
+        }
       } else {
+        if (num > walletBalance + 0.0001) {
+          setError(t('رصيد محفظة النمو غير كافٍ لإضافة هذه الوديعة', 'Growth Wallet balance is insufficient for this deposit'))
+          return
+        }
+        // withdraw from wallet first
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: walletTxErr } = await (supabase as any).from('growth_wallet_transactions').insert({
+          user_id: user.id,
+          amount: num,
+          transaction_type: 'withdrawal',
+        })
+        if (walletTxErr) {
+          setError(walletTxErr.message)
+          return
+        }
         const { error: ins } = await supabase.from('fixed_deposits').insert({
           ...row,
           user_id: user.id,
           status: 'active' as const,
         })
         if (ins) {
+          // compensate wallet if insert fails
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any).from('growth_wallet_transactions').insert({
+            user_id: user.id,
+            amount: num,
+            transaction_type: 'deposit',
+          })
           setError(ins.message)
           return
         }
