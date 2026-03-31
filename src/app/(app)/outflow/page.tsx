@@ -200,9 +200,9 @@ export default function OutflowPage() {
       />
 
       {!loading && availableCash != null ? (
-        <div className="mb-4 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm text-muted">{t('السيولة المتاحة في الفترة', 'Available liquidity this period')}</span>
-          <span className="text-lg font-bold text-brand tabular-nums" dir="ltr">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#1B6EF3] bg-[#1B6EF3] px-4 py-3 shadow-sm">
+          <span className="text-sm text-white">{t('السيولة المتاحة في الفترة', 'Available liquidity this period')}</span>
+          <span className="text-lg font-bold text-white tabular-nums" dir="ltr">
             {formatMoney(availableCash, locale)}
           </span>
         </div>
