@@ -20,6 +20,10 @@ type NotificationItem = {
   subtitle: string
 }
 
+type NotificationBellProps = {
+  sidebarMode?: boolean
+}
+
 function readDismissedSet(): Set<string> {
   try {
     const raw = localStorage.getItem(DISMISSED_KEY)
@@ -40,7 +44,7 @@ function writeDismissedSet(set: Set<string>) {
   }
 }
 
-export function NotificationBell() {
+export function NotificationBell({ sidebarMode = false }: NotificationBellProps) {
   const { t, locale } = useLanguage()
   const { startDay } = usePeriod()
   const [open, setOpen] = useState(false)
@@ -146,7 +150,7 @@ export function NotificationBell() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative overflow-visible">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -179,8 +183,9 @@ export function NotificationBell() {
           />
           <div
             className={cn(
-              'absolute end-0 z-40 mt-2 w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-border bg-white shadow-xl',
-              'ring-1 ring-black/[0.05]'
+              sidebarMode
+                ? 'absolute bottom-0 z-[100] w-[calc(100vw-2rem)] sm:w-80 md:w-96 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/[0.05] rtl:right-full ltr:left-full rtl:mr-4 ltr:ml-4'
+                : 'absolute end-0 z-40 mt-2 w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-border bg-white shadow-xl ring-1 ring-black/[0.05]'
             )}
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -188,7 +193,7 @@ export function NotificationBell() {
               <span className="text-xs text-muted">{visibleItems.length}</span>
             </div>
 
-            <div className="max-h-[24rem] overflow-auto p-2">
+            <div className="max-h-[60vh] overflow-y-auto p-2">
               {visibleItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center text-muted">
                   <Inbox className="h-6 w-6 text-slate-400" />
@@ -207,7 +212,9 @@ export function NotificationBell() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                          <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{item.subtitle}</p>
+                          <p className="mt-0.5 whitespace-normal break-words text-sm leading-relaxed text-slate-600">
+                            {item.subtitle}
+                          </p>
                         </div>
                         <button
                           type="button"
