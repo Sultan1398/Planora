@@ -14,7 +14,6 @@ import { outflowIsObligationLinkedExpense } from '@/lib/obligation-helpers'
 import { getPeriodDates, getPrevPeriodKey } from '@/lib/period'
 import { cn } from '@/lib/utils'
 import { DashboardTabPanel } from '@/components/hub/DashboardTabPanel'
-import { NotificationBell } from '@/components/layout/NotificationBell'
 import { StatisticsTabPanel } from '@/components/hub/StatisticsTabPanel'
 import { usePeriodObligations } from '@/hooks/usePeriodObligations'
 import { useRolloverBalance } from '@/hooks/useRolloverBalance'
@@ -471,10 +470,6 @@ function HubPageInner() {
               {mergedError}
             </div>
           ) : null}
-
-          <div className="mb-4 flex justify-end">
-            <NotificationBell />
-          </div>
 
           <div className="relative mb-6 overflow-hidden rounded-2xl bg-brand p-4 text-white shadow-sm lg:p-6">
             <p className="mb-2 text-sm font-medium text-white/80">{t('النقد المتاح', 'Cash on Hand')}</p>

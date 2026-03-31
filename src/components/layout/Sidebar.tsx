@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/ui/Logo'
 import { appNavItems } from '@/config/navigation'
 import { ContactSupportModal } from '@/components/layout/ContactSupportModal'
+import { NotificationBell } from '@/components/layout/NotificationBell'
 
 type SidebarProps = {
   mobileOpen: boolean
@@ -88,6 +89,13 @@ function SidebarContent({
           )
         })}
       </nav>
+
+      <div className="px-2.5 pb-1">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2 shadow-sm">
+          <span className="text-sm font-bold text-slate-700">{t('التنبيهات', 'Notifications')}</span>
+          <NotificationBell />
+        </div>
+      </div>
 
       <div className="space-y-1 border-t border-border bg-white p-2.5 pt-2">
         <button
