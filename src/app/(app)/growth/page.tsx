@@ -285,7 +285,7 @@ export default function GrowthPage() {
       {/* محفظة النمو الداخلية ولوحة الإجماليات */}
       <div className="flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm ring-1 ring-black/[0.02]">
         {/* الجزء العلوي: الرصيد والأزرار */}
-        <div className="relative flex flex-col justify-between gap-4 bg-gradient-to-b from-blue-50/40 to-white p-5 md:flex-row md:items-center md:p-6">
+        <div className="relative flex flex-col justify-between gap-4 bg-gradient-to-b from-blue-50/40 to-white p-5 md:flex-row md:items-center">
           <div className="pointer-events-none absolute -top-10 -end-10 h-28 w-28 rounded-full bg-blue-100/50 blur-2xl" />
           <div className="relative flex flex-col items-start">
             <div className="mb-2 flex items-center gap-x-3">
@@ -331,19 +331,19 @@ export default function GrowthPage() {
 
         {/* الجزء السفلي: إجماليات الأقسام */}
         <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-3">
-          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
             <p className="text-sm font-medium text-emerald-600">{t('إجمالي صناديق الادخار', 'Total Savings')}</p>
             <p className="mt-2 text-2xl font-bold text-emerald-700" dir="ltr">
               {formatMoney(totalSavings, locale)}
             </p>
           </div>
-          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
             <p className="text-sm font-medium text-emerald-600">{t('إجمالي الودائع والعوائد', 'Total Deposits')}</p>
             <p className="mt-2 text-2xl font-bold text-emerald-700" dir="ltr">
               {formatMoney(totalDeposits, locale)}
             </p>
           </div>
-          <div className="flex flex-col items-center justify-center p-6 text-center">
+          <div className="flex flex-col items-center justify-center p-4 text-center">
             <p className="text-sm font-medium text-emerald-600">{t('إجمالي الأصول الثابتة', 'Total Fixed Assets')}</p>
             <p className="mt-2 text-2xl font-bold text-emerald-700" dir="ltr">
               {formatMoney(totalAssets, locale)}
@@ -365,7 +365,7 @@ export default function GrowthPage() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10">
                 <MoneyBag weight="duotone" className="h-6 w-6 text-[#F59E0B]" aria-hidden />
               </div>
-              <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
+              <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">
                 {t('صناديق الادخار', 'Savings funds')}
               </h2>
               {isSavingsOpen ? (
@@ -531,7 +531,7 @@ export default function GrowthPage() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10">
                 <Bank weight="duotone" className="h-6 w-6 text-[#F59E0B]" aria-hidden />
               </div>
-              <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
+              <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">
                 {t('الودائع والعوائد الثابتة', 'Fixed deposits & returns')}
               </h2>
               {isDepositsOpen ? (
@@ -643,7 +643,7 @@ export default function GrowthPage() {
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F59E0B]/10">
                 <Buildings weight="duotone" className="h-6 w-6 text-[#F59E0B]" aria-hidden />
               </div>
-              <h2 className="min-w-0 text-xl font-bold text-[#1F2937] sm:text-2xl">
+              <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">
                 {t('الأصول الثابتة', 'Fixed assets')}
               </h2>
               {isAssetsOpen ? (
