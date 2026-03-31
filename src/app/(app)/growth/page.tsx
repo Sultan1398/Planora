@@ -325,39 +325,29 @@ export default function GrowthPage() {
         </div>
 
         {/* الجزء السفلي: إجماليات الأقسام */}
-        <div className="grid grid-cols-1 divide-y divide-gray-200 border-t border-gray-200 bg-gray-50 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:rtl:divide-x-reverse">
-          <div className="flex flex-col items-center justify-center p-6 text-center">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-              {t('إجمالي صناديق الادخار', 'Total Savings')}
+        <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-3">
+          {/* إجمالي صناديق الادخار */}
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+            <p className="text-sm font-medium text-gray-500">{t('إجمالي صناديق الادخار', 'Total Savings')}</p>
+            <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalSavings, locale)}
             </p>
-            <div className="mt-2 flex items-baseline gap-1">
-              <p className="text-2xl font-bold text-gray-900" dir="ltr">
-                {formatMoney(totalSavings, locale)}
-              </p>
-              <span className="text-xs font-medium text-gray-500">{t('ر.س', 'SAR')}</span>
-            </div>
           </div>
-          <div className="flex flex-col items-center justify-center p-6 text-center">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-              {t('إجمالي الودائع والعوائد', 'Total Deposits')}
+
+          {/* إجمالي الودائع والعوائد (بدون خط فاصل عمودي مع الادخار) */}
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
+            <p className="text-sm font-medium text-gray-500">{t('إجمالي الودائع والعوائد', 'Total Deposits')}</p>
+            <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalDeposits, locale)}
             </p>
-            <div className="mt-2 flex items-baseline gap-1">
-              <p className="text-2xl font-bold text-gray-900" dir="ltr">
-                {formatMoney(totalDeposits, locale)}
-              </p>
-              <span className="text-xs font-medium text-gray-500">{t('ر.س', 'SAR')}</span>
-            </div>
           </div>
-          <div className="flex flex-col items-center justify-center p-6 text-center">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-              {t('إجمالي الأصول الثابتة', 'Total Fixed Assets')}
+
+          {/* إجمالي الأصول الثابتة (مفصول بخط ناعم) */}
+          <div className="flex flex-col items-center justify-center p-6 text-center sm:border-s border-gray-200">
+            <p className="text-sm font-medium text-gray-500">{t('إجمالي الأصول الثابتة', 'Total Fixed Assets')}</p>
+            <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalAssets, locale)}
             </p>
-            <div className="mt-2 flex items-baseline gap-1">
-              <p className="text-2xl font-bold text-gray-900" dir="ltr">
-                {formatMoney(totalAssets, locale)}
-              </p>
-              <span className="text-xs font-medium text-gray-500">{t('ر.س', 'SAR')}</span>
-            </div>
           </div>
         </div>
       </div>
