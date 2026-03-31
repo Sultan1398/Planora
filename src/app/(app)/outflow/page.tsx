@@ -25,23 +25,21 @@ import {
   Pencil,
   Trash2,
   Loader2,
-  Wallet,
-  CreditCard,
   CheckCircle2,
   ReceiptText,
   CheckCircle,
   AlertCircle,
 } from 'lucide-react'
+import { Vault, Plus, CaretUp, CaretDown, Receipt, CalendarCheck } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 
 const outflowNav = getAppNavItem('/outflow')
 
-type Tab = 'general' | 'obligations'
-
 export default function OutflowPage() {
   const { t, locale } = useLanguage()
   const { periodKey, periodDates, startDay } = usePeriod()
-  const [tab, setTab] = useState<Tab>('general')
+  const [isGeneralExpensesOpen, setIsGeneralExpensesOpen] = useState(true)
+  const [isObligationsOpen, setIsObligationsOpen] = useState(true)
   const [outflows, setOutflows] = useState<Outflow[]>([])
   const [generalLoading, setGeneralLoading] = useState(true)
   const [generalError, setGeneralError] = useState('')
@@ -57,7 +55,7 @@ export default function OutflowPage() {
   const end = dateToLocalISODate(periodDates.end)
 
   const {
-    summary: { totalObligations, totalPaid, totalRemaining },
+    summary: { totalRemaining },
     visibleObligations,
     obligationPeriodMetricsById,
     paymentRows: obligationPaymentOutflows,
@@ -124,6 +122,13 @@ export default function OutflowPage() {
 
   const loading = generalLoading || obligationsLoading || cashLoading
   const error = [generalError, obligationsError, cashError].filter(Boolean).join(' · ')
+  const totalGeneralExpenses = outflows.reduce((acc, exp) => acc + Number(exp.amount || 0), 0)
+  const totalObligations = visibleObligations.reduce((acc, ob) => acc + Number(ob.amount || 0), 0)
+  const totalPaidObligations = visibleObligations.reduce(
+    (acc, ob) => acc + Number(obligationPeriodMetricsById.get(ob.id)?.periodPaid || 0),
+    0
+  )
+  const totalPeriodExpenses = totalGeneralExpenses + totalPaidObligations
 
   useEffect(() => {
     let isMounted = true
@@ -214,186 +219,220 @@ export default function OutflowPage() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <button
-          type="button"
-          onClick={() => setTab('general')}
-          className={cn(
-            'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors',
-            tab === 'general' ? 'bg-brand text-white' : 'text-muted hover:bg-surface border border-border'
-          )}
-        >
-          <Wallet size={18} />
-          {t('المصروفات العامة', 'General expenses')}
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('obligations')}
-          className={cn(
-            'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors',
-            tab === 'obligations' ? 'bg-brand text-white' : 'text-muted hover:bg-surface border border-border'
-          )}
-        >
-          <CreditCard size={18} />
-          {t('التزامات مالية', 'Financial obligations')}
-        </button>
-      </div>
-
-      {tab === 'general' ? (
-        <>
-          <div className="flex justify-end mb-4">
-            <button
-              type="button"
-              onClick={openAddGeneral}
-              className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
-            >
-              {t('+ مصروف عام', '+ General expense')}
-            </button>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
-            {loading ? (
-              <div className="flex flex-col items-center gap-2 py-16 text-muted">
-                <Loader2 className="h-8 w-8 animate-spin text-brand" />
+      {/* بطاقة إجمالي المصروفات في الفترة */}
+      <div className="mb-8 flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col justify-between gap-4 p-5 md:flex-row md:items-center">
+          <div className="flex flex-col items-start">
+            <div className="mb-2 flex items-center gap-x-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50">
+                <Vault weight="duotone" className="h-5 w-5 text-[#2563EB]" aria-hidden />
               </div>
-            ) : outflows.length === 0 ? (
-              <div className="px-6 py-14 text-center text-muted">
-                <p className="mb-4">{t('لا توجد مصروفات عامة لهذه الفترة', 'No general expenses this period')}</p>
-                <button
-                  type="button"
-                  onClick={openAddGeneral}
-                  className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
-                >
-                  {t('إضافة مصروف', 'Add expense')}
-                </button>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {outflows.map((row) => (
-                  <li
-                    key={row.id}
-                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between hover:bg-surface/30"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900">
-                        {locale === 'ar' ? row.name_ar : row.name_en}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                        <span
-                          className={cn(
-                            'rounded-md px-2 py-0.5 font-medium',
-                            row.status === 'paid' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'
-                          )}
-                        >
-                          {row.status === 'paid' ? t('مدفوع', 'Paid') : t('معلق', 'Pending')}
-                        </span>
-                        <span dir="ltr" className="tabular-nums">
-                          {formatGregorianDate(parseLocalISODate(row.date), locale)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <p className="text-lg font-bold text-danger tabular-nums" dir="ltr">
-                        {formatMoney(Number(row.amount), locale)}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => openEditGeneral(row)}
-                        className="rounded-lg p-2 text-muted hover:bg-surface hover:text-brand"
-                        aria-label={t('تعديل', 'Edit')}
-                      >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteGeneral(row.id)}
-                        disabled={deletingId === row.id}
-                        className="rounded-lg p-2 text-muted hover:bg-red-50 hover:text-danger disabled:opacity-50"
-                        aria-label={t('حذف', 'Delete')}
-                      >
-                        {deletingId === row.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm text-muted">{t('إجمالي الالتزامات', 'Total obligations')}</p>
-                <ReceiptText className="h-5 w-5 text-slate-700" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900 tabular-nums" dir="ltr">
-                {formatMoney(totalObligations, locale)}
-              </p>
+              <h2 className="text-sm font-bold text-gray-500">
+                {t('إجمالي المصروفات في الفترة', 'Total Expenses in Period')}
+              </h2>
             </div>
-
-            <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm text-muted">{t('إجمالي المسدد', 'Total paid')}</p>
-                <CheckCircle className="h-5 w-5 text-emerald-500" />
-              </div>
-              <p className="text-2xl font-bold text-emerald-600 tabular-nums" dir="ltr">
-                {formatMoney(totalPaid, locale)}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm text-muted">{t('إجمالي المتبقي', 'Total remaining')}</p>
-                <AlertCircle className="h-5 w-5 text-orange-500" />
-              </div>
-              <p className="text-2xl font-bold text-orange-600 tabular-nums" dir="ltr">
-                {formatMoney(totalRemaining, locale)}
-              </p>
+            <div className="mt-2 flex items-baseline gap-x-2">
+              <span className="text-4xl font-extrabold tracking-tight text-gray-900 md:text-5xl" dir="ltr">
+                {formatMoney(totalPeriodExpenses, locale)}
+              </span>
             </div>
           </div>
 
-          <div className="mb-4 flex justify-start">
+          <div className="mt-4 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center md:mt-0">
             <button
               type="button"
               onClick={openAddObligation}
-              className="h-10 rounded-xl bg-brand px-4 text-sm font-medium text-white transition-colors hover:bg-brand-dark"
+              className="flex items-center justify-center gap-x-2 rounded-xl border border-gray-200 bg-white px-6 py-3.5 text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
             >
-              {t('+ التزام مالي', '+ Financial obligation')}
+              <Plus weight="bold" className="h-4 w-4" aria-hidden />
+              {t('التزام مالي جديد', 'New Obligation')}
+            </button>
+            <button
+              type="button"
+              onClick={openAddGeneral}
+              className="flex items-center justify-center gap-x-2 rounded-xl bg-[#2563EB] px-6 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8]"
+            >
+              <Plus weight="bold" className="h-5 w-5" aria-hidden />
+              {t('إضافة مصروف', 'Add Expense')}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-3">
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
+            <p className="text-sm font-medium text-gray-500">{t('إجمالي المصروفات العامة', 'Total General Expenses')}</p>
+            <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalGeneralExpenses, locale)}
+            </p>
+          </div>
+          <div className="flex flex-col items-center justify-center border-b border-gray-100 p-4 text-center sm:border-b-0">
+            <p className="text-sm font-medium text-gray-500">
+              {t('إجمالي الالتزامات المالية', 'Total Financial Obligations')}
+            </p>
+            <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalObligations, locale)}
+            </p>
+          </div>
+          <div className="flex flex-col items-center justify-center p-4 text-center sm:border-s border-gray-200">
+            <p className="text-sm font-medium text-gray-500">{t('الالتزامات المسددة', 'Paid Obligations')}</p>
+            <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+              {formatMoney(totalPaidObligations, locale)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-8">
+        <section className="rounded-3xl border border-gray-200 bg-white p-2 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              onClick={() => setIsGeneralExpensesOpen((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+              aria-expanded={isGeneralExpensesOpen}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                <Receipt weight="duotone" className="h-6 w-6 text-[#2563EB]" aria-hidden />
+              </div>
+              <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">
+                {t('المصروفات العامة', 'General Expenses')}
+              </h2>
+              {isGeneralExpensesOpen ? (
+                <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              ) : (
+                <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              )}
             </button>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 via-slate-50/50 to-slate-100/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] sm:p-6">
-            {loading ? (
-              <div className="flex flex-col items-center gap-2 py-16 text-muted">
-                <Loader2 className="h-8 w-8 animate-spin text-brand" />
-              </div>
-            ) : visibleObligations.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-white/80 px-6 py-14 text-center text-muted">
-                <p className="mb-4">{t('لا توجد التزامات مسجّلة', 'No obligations recorded')}</p>
-                <button
-                  type="button"
-                  onClick={openAddObligation}
-                  className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
-                >
-                  {t('إضافة التزام', 'Add obligation')}
-                </button>
-              </div>
-            ) : (
-              <ul className="flex flex-col gap-5 sm:gap-6" role="list">
-                {visibleObligations.map((row) => {
-                  const metrics = obligationPeriodMetricsById.get(row.id)
-                  const total = metrics?.periodTotal ?? Number(row.amount)
-                  const paid = metrics?.periodPaid ?? 0
-                  const rem = metrics?.periodRemaining ?? total
-                  const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0
-                  const isPaid = rem <= 0.0001
-                  return (
-                    <li
-                      key={row.id}
-                      className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03] transition-all duration-200 hover:border-slate-300/90 hover:shadow-md hover:ring-slate-900/[0.06]"
+          {isGeneralExpensesOpen && (
+            <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+              <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+                {loading ? (
+                  <div className="flex flex-col items-center gap-2 py-16 text-muted">
+                    <Loader2 className="h-8 w-8 animate-spin text-brand" />
+                  </div>
+                ) : outflows.length === 0 ? (
+                  <div className="px-6 py-14 text-center text-muted">
+                    <p className="mb-4">{t('لا توجد مصروفات عامة لهذه الفترة', 'No general expenses this period')}</p>
+                    <button
+                      type="button"
+                      onClick={openAddGeneral}
+                      className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
                     >
+                      {t('إضافة مصروف', 'Add expense')}
+                    </button>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {outflows.map((row) => (
+                      <li
+                        key={row.id}
+                        className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between hover:bg-surface/30"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-900">
+                            {locale === 'ar' ? row.name_ar : row.name_en}
+                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+                            <span
+                              className={cn(
+                                'rounded-md px-2 py-0.5 font-medium',
+                                row.status === 'paid' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'
+                              )}
+                            >
+                              {row.status === 'paid' ? t('مدفوع', 'Paid') : t('معلق', 'Pending')}
+                            </span>
+                            <span dir="ltr" className="tabular-nums">
+                              {formatGregorianDate(parseLocalISODate(row.date), locale)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <p className="text-lg font-bold text-danger tabular-nums" dir="ltr">
+                            {formatMoney(Number(row.amount), locale)}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => openEditGeneral(row)}
+                            className="rounded-lg p-2 text-muted hover:bg-surface hover:text-brand"
+                            aria-label={t('تعديل', 'Edit')}
+                          >
+                            <Pencil size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteGeneral(row.id)}
+                            disabled={deletingId === row.id}
+                            className="rounded-lg p-2 text-muted hover:bg-red-50 hover:text-danger disabled:opacity-50"
+                            aria-label={t('حذف', 'Delete')}
+                          >
+                            {deletingId === row.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-gray-200 bg-white p-2 shadow-sm sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              onClick={() => setIsObligationsOpen((v) => !v)}
+              className="flex min-w-0 flex-1 items-center gap-3 text-start transition-opacity hover:opacity-80"
+              aria-expanded={isObligationsOpen}
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                <CalendarCheck weight="duotone" className="h-6 w-6 text-[#2563EB]" aria-hidden />
+              </div>
+              <h2 className="min-w-0 text-lg font-bold text-[#1F2937]">
+                {t('التزامات مالية', 'Financial obligations')}
+              </h2>
+              {isObligationsOpen ? (
+                <CaretUp weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              ) : (
+                <CaretDown weight="regular" className="ms-auto h-5 w-5 shrink-0 text-gray-400" aria-hidden />
+              )}
+            </button>
+          </div>
+
+          {isObligationsOpen && (
+            <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
+              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/90 via-slate-50/50 to-slate-100/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] sm:p-6">
+                {loading ? (
+                  <div className="flex flex-col items-center gap-2 py-16 text-muted">
+                    <Loader2 className="h-8 w-8 animate-spin text-brand" />
+                  </div>
+                ) : visibleObligations.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-white/80 px-6 py-14 text-center text-muted">
+                    <p className="mb-4">{t('لا توجد التزامات مسجّلة', 'No obligations recorded')}</p>
+                    <button
+                      type="button"
+                      onClick={openAddObligation}
+                      className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
+                    >
+                      {t('إضافة التزام', 'Add obligation')}
+                    </button>
+                  </div>
+                ) : (
+                  <ul className="flex flex-col gap-5 sm:gap-6" role="list">
+                    {visibleObligations.map((row) => {
+                      const metrics = obligationPeriodMetricsById.get(row.id)
+                      const total = metrics?.periodTotal ?? Number(row.amount)
+                      const paid = metrics?.periodPaid ?? 0
+                      const rem = metrics?.periodRemaining ?? total
+                      const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0
+                      const isPaid = rem <= 0.0001
+                      return (
+                        <li
+                          key={row.id}
+                          className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03] transition-all duration-200 hover:border-slate-300/90 hover:shadow-md hover:ring-slate-900/[0.06]"
+                        >
                       {/* شريط علوي واحد: العنوان | إجراءات بنفس الارتفاع */}
                       <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                         <div className="min-w-0 flex-1">
@@ -490,14 +529,16 @@ export default function OutflowPage() {
                           </span>
                         </span>
                       </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        </>
-      )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
 
       <GeneralOutflowModal
         open={generalModal}

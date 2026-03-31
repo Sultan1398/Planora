@@ -140,13 +140,12 @@ export default function InflowPage() {
       ) : null}
 
       {!loading && !cashLoading && availableCash != null ? (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-          <span className="text-sm font-medium text-gray-500">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#1B6EF3] bg-[#1B6EF3] px-4 py-3 shadow-sm">
+          <span className="text-sm text-white">
             {t('السيولة المتاحة في الفترة', 'Available liquidity this period')}
           </span>
-          <span className="text-2xl font-bold tracking-tight text-[#2563EB] md:text-3xl" dir="ltr">
-            {formatMoney(availableCash, locale)}{' '}
-            <span className="text-lg font-normal text-gray-500">{t('ر.س', 'SAR')}</span>
+          <span className="text-lg font-bold text-white tabular-nums" dir="ltr">
+            {formatMoney(availableCash, locale)}
           </span>
         </div>
       ) : null}
