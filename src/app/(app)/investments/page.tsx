@@ -32,6 +32,8 @@ export default function InvestmentsPage() {
 
   const [walletNow, setWalletNow] = useState<number | null>(null)
   const [internalNow, setInternalNow] = useState<number | null>(null)
+  const [walletDepositsTotal, setWalletDepositsTotal] = useState(0)
+  const [walletWithdrawalsTotal, setWalletWithdrawalsTotal] = useState(0)
   const [isOpenDealsOpen, setIsOpenDealsOpen] = useState(true)
   const [isClosedDealsOpen, setIsClosedDealsOpen] = useState(true)
 
@@ -48,32 +50,51 @@ export default function InvestmentsPage() {
       setInvestments([])
       setWalletNow(null)
       setInternalNow(null)
+      setWalletDepositsTotal(0)
+      setWalletWithdrawalsTotal(0)
       setLoading(false)
       return
     }
 
-    const [invRes, w, i] = await Promise.all([
+    const [invRes, walletTxRes, w, i] = await Promise.all([
       supabase
         .from('investments')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('investment_wallet_transactions')
+        .select('amount, type')
+        .eq('user_id', user.id)
+        .in('type', ['deposit', 'withdrawal']),
       computeWalletCashNow(supabase, user.id),
       computeInvestmentInternalBalance(supabase, user.id),
     ])
 
-    if (invRes.error) {
-      setError(invRes.error.message)
+    if (invRes.error || walletTxRes.error) {
+      setError(invRes.error?.message ?? walletTxRes.error?.message ?? '')
       setInvestments([])
       setWalletNow(null)
       setInternalNow(null)
+      setWalletDepositsTotal(0)
+      setWalletWithdrawalsTotal(0)
       setLoading(false)
       return
+    }
+
+    let depositTotal = 0
+    let withdrawalTotal = 0
+    for (const row of walletTxRes.data ?? []) {
+      const amount = Number(row.amount)
+      if (row.type === 'deposit') depositTotal += amount
+      if (row.type === 'withdrawal') withdrawalTotal += amount
     }
 
     setInvestments((invRes.data as Investment[] | null) ?? [])
     setWalletNow(w)
     setInternalNow(i)
+    setWalletDepositsTotal(depositTotal)
+    setWalletWithdrawalsTotal(withdrawalTotal)
     setLoading(false)
   }, [])
 
@@ -91,8 +112,8 @@ export default function InvestmentsPage() {
 
   const openDeals = useMemo(() => investments.filter((x) => x.status === 'open'), [investments])
   const closedDeals = useMemo(() => investments.filter((x) => x.status === 'closed'), [investments])
-  const availableCash = walletNow ?? 0
-  const portfolioValue = internalNow ?? 0
+  const portfolioValue = useMemo(() => openDeals.reduce((sum, d) => sum + Number(d.entry_amount || 0), 0), [openDeals])
+  const liquidityCash = internalNow ?? 0
 
   const minD = useMemo(() => dateToLocalISODate(periodDates.start), [periodDates.start])
   const maxD = useMemo(() => dateToLocalISODate(periodDates.end), [periodDates.end])
@@ -110,6 +131,7 @@ export default function InvestmentsPage() {
     return sum
   }, [closedDeals, minD, maxD])
   const totalProfit = profitLossInPeriod
+  const investmentWalletBalance = walletDepositsTotal - walletWithdrawalsTotal + totalProfit
 
   function investmentPathMeta(type: Investment['type']) {
     /** يطابق DEAL_CATEGORIES في InvestmentDealModal: فوركس→other، عقار→partnership، مشاريع→freelance */
@@ -255,12 +277,12 @@ export default function InvestmentsPage() {
                     <Wallet weight="duotone" className="h-5 w-5 text-indigo-600" aria-hidden />
                   </div>
                   <h2 className="text-sm font-bold text-gray-500">
-                    {t('النقد المتاح للاستثمار', 'Available Cash for Investment')}
+                    {t('رصيد محفظة الاستثمار', 'Investment Wallet Balance')}
                   </h2>
                 </div>
                 <div className="mt-2 flex items-baseline gap-x-2">
                   <span className="text-4xl font-extrabold tracking-tight text-gray-900 md:text-5xl" dir="ltr">
-                    {formatMoney(availableCash, locale)}
+                    {formatMoney(investmentWalletBalance, locale)}
                   </span>
                 </div>
               </div>
@@ -275,7 +297,7 @@ export default function InvestmentsPage() {
                   className="flex items-center justify-center gap-x-2 rounded-xl border border-gray-200 bg-white px-6 py-3.5 text-sm font-bold text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
                 >
                   <ArrowUpRight className="h-4 w-4" aria-hidden />
-                  {t('سحب للمحفظة', 'Withdraw to Wallet')}
+                  {t('سحب', 'Withdraw')}
                 </button>
                 <button
                   type="button"
@@ -286,22 +308,29 @@ export default function InvestmentsPage() {
                   className="flex items-center justify-center gap-x-2 rounded-xl bg-indigo-600 px-6 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-indigo-700"
                 >
                   <ArrowDownLeft className="h-5 w-5" aria-hidden />
-                  {t('إيداع للاستثمارات', 'Deposit to Investments')}
+                  {t('إيداع', 'Deposit')}
                 </button>
               </div>
             </div>
 
             {/* الجزء السفلي: إجماليات الاستثمارات */}
-            <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-2">
+            <div className="grid grid-cols-1 border-t border-gray-100 bg-white sm:grid-cols-3">
               <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0">
-                <p className="text-sm font-medium text-gray-500">{t('قيمة المحفظة الاستثمارية', 'Portfolio Value')}</p>
-                <p className="mt-2 text-2xl font-bold text-[#1F2937]" dir="ltr">
+                <p className="text-sm font-medium text-indigo-600">{t('قيمة المحفظة الاستثمارية', 'Portfolio Value')}</p>
+                <p className="mt-2 text-2xl font-bold text-indigo-700" dir="ltr">
                   {formatMoney(portfolioValue, locale)}
                 </p>
               </div>
 
+              <div className="flex flex-col items-center justify-center border-b border-gray-100 p-6 text-center sm:border-b-0 sm:border-s border-gray-200">
+                <p className="text-sm font-medium text-indigo-600">{t('السيولة النقدية', 'Cash Liquidity')}</p>
+                <p className="mt-2 text-2xl font-bold text-indigo-700" dir="ltr">
+                  {formatMoney(liquidityCash, locale)}
+                </p>
+              </div>
+
               <div className="flex flex-col items-center justify-center p-6 text-center sm:border-s border-gray-200">
-                <p className="text-sm font-medium text-gray-500">{t('الربح/الخسارة', 'Profit/Loss')}</p>
+                <p className="text-sm font-medium text-indigo-600">{t('الربح/الخسارة', 'Profit/Loss')}</p>
                 <p className={cn('mt-2 text-2xl font-bold', totalProfit >= 0 ? 'text-green-600' : 'text-red-600')} dir="ltr">
                   {totalProfit > 0 ? '+' : ''}
                   {formatMoney(totalProfit, locale)}
