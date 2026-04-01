@@ -157,8 +157,8 @@ export default function InflowPage() {
           <div className="pointer-events-none absolute -top-10 -end-10 h-28 w-28 rounded-full bg-blue-100/50 blur-2xl" />
           <div className="relative flex flex-col items-start">
             <div className="mb-2 flex items-center gap-x-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 ring-1 ring-blue-100">
-                <TrendUp weight="duotone" className="h-5 w-5 text-[#2563EB]" aria-hidden />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 ring-1 ring-emerald-100">
+                <TrendUp weight="duotone" className="h-5 w-5 text-emerald-700" aria-hidden />
               </div>
               <h2 className="text-sm font-bold text-gray-500">
                 {t('إجمالي الدخل للفترة الحالية', 'Total Income for Current Period')}
