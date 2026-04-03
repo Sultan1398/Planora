@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { usePeriod } from '@/contexts/PeriodContext'
 import { createClient } from '@/lib/supabase/client'
@@ -22,6 +22,8 @@ type NotificationItem = {
 
 type NotificationBellProps = {
   sidebarMode?: boolean
+  /** عنوان ووصف بجانب الجرس (يُستخدم مع sidebarMode لعرض القائمة بعرض البطاقة) */
+  sidebarLeading?: ReactNode
 }
 
 function readDismissedSet(): Set<string> {
@@ -44,7 +46,7 @@ function writeDismissedSet(set: Set<string>) {
   }
 }
 
-export function NotificationBell({ sidebarMode = false }: NotificationBellProps) {
+export function NotificationBell({ sidebarMode = false, sidebarLeading }: NotificationBellProps) {
   const { t, locale } = useLanguage()
   const { startDay } = usePeriod()
   const [open, setOpen] = useState(false)
@@ -149,90 +151,117 @@ export function NotificationBell({ sidebarMode = false }: NotificationBellProps)
     })
   }
 
-  return (
-    <div className="relative overflow-visible">
+  const bellButton = (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      className={cn(
+        'relative inline-flex shrink-0 items-center justify-center rounded-xl transition-all',
+        sidebarMode
+          ? cn(
+              'h-11 w-11 text-brand shadow-sm ring-1 ring-slate-200/90',
+              'bg-white hover:bg-brand/[0.06] hover:ring-brand/30'
+            )
+          : cn(
+              'h-10 w-10 border border-border bg-white text-slate-700 shadow-sm',
+              'hover:bg-surface'
+            )
+      )}
+      aria-label={t('الإشعارات', 'Notifications')}
+    >
+      <Bell className="h-5 w-5" strokeWidth={sidebarMode ? 2.25 : 2} />
+      {visibleItems.length > 0 ? (
+        <span
+          className={cn(
+            'absolute -end-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full',
+            'bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white'
+          )}
+        >
+          {visibleItems.length}
+        </span>
+      ) : null}
+    </button>
+  )
+
+  const dropdownPanel = open ? (
+    <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        className="fixed inset-0 z-30"
+        aria-label={t('إغلاق الإشعارات', 'Close notifications')}
+        onClick={() => setOpen(false)}
+      />
+      <div
         className={cn(
-          'relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white',
-          'text-slate-700 shadow-sm transition-colors hover:bg-surface'
+          sidebarMode && sidebarLeading != null
+            ? 'absolute start-0 end-0 top-full z-[100] mt-2 w-full min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/[0.05]'
+            : sidebarMode
+              ? 'absolute bottom-0 z-[100] w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/[0.05] sm:w-80 md:w-96 rtl:right-full ltr:left-full rtl:mr-4 ltr:ml-4'
+              : 'absolute end-0 z-40 mt-2 w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-border bg-white shadow-xl ring-1 ring-black/[0.05]'
         )}
-        aria-label={t('الإشعارات', 'Notifications')}
       >
-        <Bell className="h-5 w-5" />
-        {visibleItems.length > 0 ? (
-          <span
-            className={cn(
-              'absolute -end-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full',
-              'bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white'
-            )}
-          >
-            {visibleItems.length}
-          </span>
-        ) : null}
-      </button>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="text-sm font-bold text-slate-900">{t('الإشعارات', 'Notifications')}</p>
+          <span className="text-xs text-muted">{visibleItems.length}</span>
+        </div>
 
-      {open ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-30"
-            aria-label={t('إغلاق الإشعارات', 'Close notifications')}
-            onClick={() => setOpen(false)}
-          />
-          <div
-            className={cn(
-              sidebarMode
-                ? 'absolute bottom-0 z-[100] w-[calc(100vw-2rem)] sm:w-80 md:w-96 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/[0.05] rtl:right-full ltr:left-full rtl:mr-4 ltr:ml-4'
-                : 'absolute end-0 z-40 mt-2 w-[min(92vw,24rem)] overflow-hidden rounded-2xl border border-border bg-white shadow-xl ring-1 ring-black/[0.05]'
-            )}
-          >
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <p className="text-sm font-bold text-slate-900">{t('الإشعارات', 'Notifications')}</p>
-              <span className="text-xs text-muted">{visibleItems.length}</span>
+        <div className="max-h-[60vh] overflow-y-auto p-2">
+          {visibleItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center text-muted">
+              <Inbox className="h-6 w-6 text-slate-400" />
+              <p className="text-sm">{t('لا توجد إشعارات جديدة', 'No new notifications')}</p>
             </div>
-
-            <div className="max-h-[60vh] overflow-y-auto p-2">
-              {visibleItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-center text-muted">
-                  <Inbox className="h-6 w-6 text-slate-400" />
-                  <p className="text-sm">{t('لا توجد إشعارات جديدة', 'No new notifications')}</p>
-                </div>
-              ) : (
-                <ul className="space-y-2">
-                  {visibleItems.map((item) => (
-                    <li
-                      key={item.id}
-                      className="rounded-xl border border-amber-100 bg-amber-50/60 p-3 shadow-sm"
+          ) : (
+            <ul className="space-y-2">
+              {visibleItems.map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-xl border border-amber-100 bg-amber-50/60 p-3 shadow-sm"
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="mt-0.5 rounded-lg bg-amber-100 p-1.5 text-amber-700">
+                      <AlertTriangle className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-800">{item.title}</p>
+                      <p className="mt-0.5 whitespace-normal break-words text-sm leading-relaxed text-slate-600">
+                        {item.subtitle}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => dismissNotification(item.id)}
+                      className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-800"
+                      aria-label={t('إخفاء الإشعار', 'Dismiss notification')}
                     >
-                      <div className="flex items-start gap-2">
-                        <div className="mt-0.5 rounded-lg bg-amber-100 p-1.5 text-amber-700">
-                          <AlertTriangle className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                          <p className="mt-0.5 whitespace-normal break-words text-sm leading-relaxed text-slate-600">
-                            {item.subtitle}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => dismissNotification(item.id)}
-                          className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-800"
-                          aria-label={t('إخفاء الإشعار', 'Dismiss notification')}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </>
-      ) : null}
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>
+  ) : null
+
+  if (sidebarMode && sidebarLeading != null) {
+    return (
+      <div className="relative w-full overflow-visible">
+        <div className="flex w-full items-center justify-between gap-3">
+          {sidebarLeading}
+          {bellButton}
+        </div>
+        {dropdownPanel}
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative overflow-visible">
+      {bellButton}
+      {dropdownPanel}
     </div>
   )
 }

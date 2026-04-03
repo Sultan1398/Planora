@@ -55,7 +55,35 @@ function SidebarContent({
         ) : null}
       </div>
 
-      <nav className="space-y-0.5 p-2.5">
+      <div className="px-2.5 pb-2 pt-1">
+        <div
+          className={cn(
+            'relative overflow-visible rounded-2xl border border-slate-200/90',
+            'bg-gradient-to-br from-white via-slate-50/50 to-brand/[0.07]',
+            'p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] ring-1 ring-slate-900/[0.04]'
+          )}
+        >
+          <div
+            className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-l from-transparent via-brand/35 to-transparent opacity-90"
+            aria-hidden
+          />
+          <NotificationBell
+            sidebarMode
+            sidebarLeading={
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold tracking-tight text-slate-900">
+                  {t('التنبيهات', 'Notifications')}
+                </p>
+                <p className="mt-0.5 text-[11px] font-medium leading-snug text-slate-500">
+                  {t('مواعيد الالتزامات والمتابعة', 'Obligation due dates & follow-up')}
+                </p>
+              </div>
+            }
+          />
+        </div>
+      </div>
+
+      <nav className="space-y-0.5 p-2.5 pt-0">
         {appNavItems.map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
@@ -89,13 +117,6 @@ function SidebarContent({
           )
         })}
       </nav>
-
-      <div className="px-2.5 pb-1">
-        <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2 shadow-sm">
-          <span className="text-sm font-bold text-slate-700">{t('التنبيهات', 'Notifications')}</span>
-          <NotificationBell sidebarMode />
-        </div>
-      </div>
 
       <div className="space-y-1 border-t border-border bg-white p-2.5 pt-2">
         <button
