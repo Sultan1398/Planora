@@ -464,119 +464,161 @@ export default function OutflowPage() {
                     </button>
                   </div>
                 ) : (
-                  <ul className="flex flex-col gap-5 sm:gap-6" role="list">
-                    {visibleObligations.map((row) => {
-                      const metrics = obligationPeriodMetricsById.get(row.id)
-                      const total = metrics?.periodTotal ?? Number(row.amount)
-                      const paid = metrics?.periodPaid ?? 0
-                      const rem = metrics?.periodRemaining ?? total
-                      const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0
-                      const isPaid = rem <= 0.0001
-                      return (
-                        <li
-                          key={row.id}
-                          className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03] transition-all duration-200 hover:border-slate-300/90 hover:shadow-md hover:ring-slate-900/[0.06]"
-                        >
-                      {/* شريط علوي واحد: العنوان | إجراءات بنفس الارتفاع */}
-                      <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-base font-bold text-slate-900">
-                            {locale === 'ar' ? row.name_ar : row.name_en}
-                          </h3>
-                          <p className="mt-0.5 text-xs text-muted">
-                            {t('الاستحقاق:', 'Due:')}{' '}
-                            <span dir="ltr" className="tabular-nums">
-                              {formatGregorianDate(parseLocalISODate(row.due_date), locale)}
-                            </span>
-                          </p>
-                        </div>
-                        <div className="flex flex-none items-center gap-1 sm:gap-1.5">
-                          {rem > 0.0001 ? (
-                            <button
-                              type="button"
-                              onClick={() => setPayObligation(row)}
-                              className="h-9 shrink-0 rounded-lg bg-brand px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-dark"
+                  <div className="mt-4 w-full overflow-x-auto border-t border-gray-100 pt-4">
+                    <table className="w-full min-w-[950px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-gray-50/50 text-xs font-semibold text-gray-500">
+                          <th scope="col" className="px-4 py-4 text-start">
+                            {t('الاسم', 'Name')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('إجمالي الالتزام', 'Total Amount')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('تاريخ التسجيل', 'Registration Date')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('تاريخ الاستحقاق', 'Due Date')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('المسدد', 'Paid')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('المتبقي', 'Remaining')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('الحالة', 'Status')}
+                          </th>
+                          <th scope="col" className="px-4 py-4 text-center">
+                            {t('الإجراءات', 'Actions')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleObligations.map((row) => {
+                          const metrics = obligationPeriodMetricsById.get(row.id)
+                          const total = metrics?.periodTotal ?? Number(row.amount)
+                          const paid = metrics?.periodPaid ?? 0
+                          const rem = metrics?.periodRemaining ?? total
+
+                          const isFullyPaid = rem <= 0.0001
+                          const isPartiallyPaid = !isFullyPaid && paid > 0.0001
+
+                          const statusText = isFullyPaid
+                            ? t('مسدد بالكامل', 'Fully Paid')
+                            : isPartiallyPaid
+                              ? t('مسدد جزئي', 'Partially Paid')
+                              : t('غير مسدد', 'Unpaid')
+
+                          const statusColor = isFullyPaid
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : isPartiallyPaid
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-amber-100 text-amber-700'
+
+                          const name = locale === 'ar' ? row.name_ar : row.name_en
+
+                          return (
+                            <tr
+                              key={row.id}
+                              className="border-b border-gray-50 transition-colors hover:bg-gray-50/50"
                             >
-                              {t('سداد', 'Pay')}
-                            </button>
-                          ) : (
-                            <span className="inline-flex h-9 max-w-[9.5rem] items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200/60 sm:max-w-none sm:px-3">
-                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
-                              <span className="leading-tight">{t('مسدَّد بالكامل', 'Fully paid')}</span>
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => openEditObligation(row)}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-600 transition-colors hover:border-border hover:bg-surface hover:text-brand"
-                            aria-label={t('تعديل', 'Edit')}
-                          >
-                            <Pencil size={18} strokeWidth={2} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteObligation(row)}
-                            disabled={deletingId === row.id}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-slate-600 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-danger disabled:opacity-50"
-                            aria-label={t('حذف', 'Delete')}
-                          >
-                            {deletingId === row.id ? (
-                              <Loader2 size={18} className="animate-spin" />
-                            ) : (
-                              <Trash2 size={18} strokeWidth={2} />
-                            )}
-                          </button>
-                        </div>
-                      </div>
+                              <td className="whitespace-nowrap px-4 py-4 text-start font-bold text-gray-900">
+                                {name || t('بدون اسم', 'Unnamed')}
+                              </td>
 
-                      <div className="mt-3">
-                        <div className="mb-2 flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-muted">
-                          <span>{t('التقدم', 'Progress')}</span>
-                          <span dir="ltr" className="tabular-nums text-slate-600">
-                            {isPaid ? '100%' : `${pct.toFixed(0)}%`}
-                          </span>
-                        </div>
-                        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className={cn(
-                              'h-full rounded-full transition-all duration-300',
-                              isPaid ? 'bg-emerald-500' : 'bg-amber-500'
-                            )}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
+                              <td
+                                className="whitespace-nowrap px-4 py-4 text-center font-bold text-gray-900"
+                                dir="ltr"
+                              >
+                                {formatMoney(total, locale)}
+                              </td>
 
-                      <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-slate-50 pt-3 text-xs text-muted">
-                        <span>
-                          {t('الإجمالي:', 'Total:')}{' '}
-                          <span className="font-bold text-slate-800 tabular-nums" dir="ltr">
-                            {formatMoney(total, locale)}
-                          </span>
-                        </span>
-                        <span>
-                          {t('المسدَّد:', 'Paid:')}{' '}
-                          <span className="font-bold text-slate-700 tabular-nums" dir="ltr">
-                            {formatMoney(paid, locale)}
-                          </span>
-                        </span>
-                        <span>
-                          {t('المتبقي:', 'Remaining:')}{' '}
-                          <span
-                            className={cn(
-                              'font-bold tabular-nums',
-                              rem > 0.0001 ? 'text-amber-600' : 'text-emerald-600'
-                            )}
-                            dir="ltr"
-                          >
-                            {formatMoney(rem, locale)}
-                          </span>
-                        </span>
-                      </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
+                              <td
+                                className="whitespace-nowrap px-4 py-4 text-center text-gray-500"
+                                dir="ltr"
+                              >
+                                {row.date ? formatGregorianDate(parseLocalISODate(row.date), locale) : '-'}
+                              </td>
+
+                              <td
+                                className="whitespace-nowrap px-4 py-4 text-center text-gray-500"
+                                dir="ltr"
+                              >
+                                {row.due_date
+                                  ? formatGregorianDate(parseLocalISODate(row.due_date), locale)
+                                  : '-'}
+                              </td>
+
+                              <td
+                                className="whitespace-nowrap px-4 py-4 text-center font-bold text-emerald-600"
+                                dir="ltr"
+                              >
+                                {formatMoney(paid, locale)}
+                              </td>
+
+                              <td
+                                className="whitespace-nowrap px-4 py-4 text-center font-bold text-rose-600"
+                                dir="ltr"
+                              >
+                                {formatMoney(rem, locale)}
+                              </td>
+
+                              <td className="whitespace-nowrap px-4 py-4 text-center">
+                                <span className={cn('inline-flex rounded-md px-2.5 py-1 text-xs font-bold', statusColor)}>
+                                  {statusText}
+                                </span>
+                              </td>
+
+                              <td className="whitespace-nowrap px-4 py-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  {rem > 0.0001 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPayObligation(row)}
+                                      className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#1D4ED8]"
+                                    >
+                                      {t('سداد', 'Pay')}
+                                    </button>
+                                  ) : (
+                                    <span className="inline-flex h-8 max-w-[9.5rem] items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 text-xs font-bold text-emerald-800 ring-1 ring-emerald-200/60">
+                                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                                      <span className="leading-tight">{t('مسدَّد بالكامل', 'Fully paid')}</span>
+                                    </span>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditObligation(row)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-blue-600 transition-colors hover:bg-blue-50"
+                                    title={t('تعديل', 'Edit')}
+                                    aria-label={t('تعديل', 'Edit')}
+                                  >
+                                    <Pencil size={16} strokeWidth={2} />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteObligation(row)}
+                                    disabled={deletingId === row.id}
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                                    title={t('حذف', 'Delete')}
+                                    aria-label={t('حذف', 'Delete')}
+                                  >
+                                    {deletingId === row.id ? (
+                                      <Loader2 size={16} className="animate-spin" />
+                                    ) : (
+                                      <Trash2 size={16} strokeWidth={2} />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>
