@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { dateToLocalISODate } from '@/lib/date-local'
+import { dateToLocalISODate, parseLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
+import { formatGregorianDate } from '@/lib/period'
 import { X, ScrollText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { InvestmentWalletTransaction } from '@/types/database'
@@ -155,7 +156,8 @@ export function InvestmentActivityLogModal({ open, onClose, periodStart, periodE
         </div>
 
         <p className="border-b border-border bg-surface/50 px-5 py-2 text-xs text-muted" dir="ltr">
-          {minD} — {maxD}
+          {formatGregorianDate(parseLocalISODate(minD), locale)} —{' '}
+          {formatGregorianDate(parseLocalISODate(maxD), locale)}
         </p>
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
@@ -191,7 +193,9 @@ export function InvestmentActivityLogModal({ open, onClose, periodStart, periodE
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted">
                       <span className="tabular-nums" dir="ltr">
-                        {r.date}
+                        {r.date
+                          ? formatGregorianDate(parseLocalISODate(String(r.date).slice(0, 10)), locale)
+                          : '—'}
                       </span>
                       {dealName ? <span className="font-medium text-slate-600 truncate max-w-[60%]">{dealName}</span> : null}
                     </div>

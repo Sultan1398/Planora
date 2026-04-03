@@ -12,7 +12,7 @@ import { computeInvestmentInternalBalance } from '@/lib/investment-ledger'
 import { computeWalletCashNow } from '@/lib/cash-liquidity'
 import { dateToLocalISODate, parseLocalISODate } from '@/lib/date-local'
 import { formatMoney } from '@/lib/format-money'
-import { format } from 'date-fns'
+import { formatGregorianDate } from '@/lib/period'
 import { InvestmentWalletTransferModal } from '@/components/investments/InvestmentWalletTransferModal'
 import { InvestmentDealModal } from '@/components/investments/InvestmentDealModal'
 import { InvestmentCloseModal } from '@/components/investments/InvestmentCloseModal'
@@ -468,11 +468,11 @@ export default function InvestmentsPage() {
                         const displayName = locale === 'ar' ? deal.name_ar : deal.name_en
 
                         const openDateStr = deal.entry_date
-                          ? format(parseLocalISODate(deal.entry_date.slice(0, 10)), 'yyyy-MM-dd')
+                          ? formatGregorianDate(parseLocalISODate(deal.entry_date.slice(0, 10)), locale)
                           : '—'
                         const closeDateStr =
                           !isOpen && deal.exit_date
-                            ? format(parseLocalISODate(deal.exit_date.slice(0, 10)), 'yyyy-MM-dd')
+                            ? formatGregorianDate(parseLocalISODate(deal.exit_date.slice(0, 10)), locale)
                             : '—'
 
                         return (
