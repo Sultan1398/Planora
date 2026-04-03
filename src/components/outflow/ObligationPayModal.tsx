@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
 import type { Obligation } from '@/types/database'
 import { dateToLocalISODate, defaultDateInPeriod } from '@/lib/date-local'
-import { computeAvailableCash } from '@/lib/cash-liquidity'
 import {
   OBLIGATION_PAY_TAG,
   obligationPaidAmount,
@@ -21,6 +20,8 @@ type Props = {
   onClose: () => void
   onSaved: () => void
   obligation: Obligation | null
+  /** السيولة المتاحة في المحفظة الرئيسية خلال الفترة (يشمل rolledOver). */
+  availableCash: number | null
   /** مجموع سدادات العلامة قبل هذه الجلسة (مخطط بدون paid_amount) */
   markerPaidSum: number
   periodStart: Date
@@ -32,6 +33,7 @@ export function ObligationPayModal({
   onClose,
   onSaved,
   obligation,
+  availableCash,
   markerPaidSum,
   periodStart,
   periodEnd,
@@ -42,7 +44,6 @@ export function ObligationPayModal({
   const [dateStr, setDateStr] = useState(() => defaultDateInPeriod(periodStart, periodEnd))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [availableCash, setAvailableCash] = useState<number | null>(null)
 
   const minD = dateToLocalISODate(periodStart)
   const maxD = dateToLocalISODate(periodEnd)
@@ -55,25 +56,7 @@ export function ObligationPayModal({
     setPayMode('partial')
     setPayAmount('')
     setDateStr(defaultDateInPeriod(periodStart, periodEnd))
-
-    let cancelled = false
-    ;(async () => {
-      const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user || cancelled) return
-      try {
-        const a = await computeAvailableCash(supabase, user.id, minD, maxD)
-        if (!cancelled) setAvailableCash(a)
-      } catch {
-        if (!cancelled) setAvailableCash(null)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [open, obligation, periodStart, periodEnd, minD, maxD])
+  }, [open, obligation, periodStart, periodEnd])
 
   if (!open || !obligation) return null
 
@@ -132,8 +115,17 @@ export function ObligationPayModal({
         return
       }
 
-      const available = await computeAvailableCash(supabase, user.id, minD, maxD)
-      if (num > available + 0.0001) {
+      if (availableCash == null) {
+        setError(
+          t(
+            'جاري حساب السيولة المتاحة في المحفظة. يرجى المحاولة بعد قليل.',
+            'Calculating available liquidity in your wallet. Please try again shortly.'
+          )
+        )
+        return
+      }
+
+      if (num > availableCash + 0.0001) {
         setError(
           t(
             'لا توجد سيولة كافية في المحفظة لهذا السداد.',

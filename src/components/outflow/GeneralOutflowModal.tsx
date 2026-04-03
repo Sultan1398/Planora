@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
 import type { Outflow } from '@/types/database'
 import { dateToLocalISODate, defaultDateInPeriod } from '@/lib/date-local'
-import { computeAvailableCash, computeAvailableCashExcludingOutflow } from '@/lib/cash-liquidity'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,11 +13,13 @@ type Props = {
   onClose: () => void
   onSaved: () => void
   edit: Outflow | null
+  /** السيولة المتاحة في المحفظة الرئيسية خلال الفترة (يشمل rolledOver). */
+  availableCash: number | null
   periodStart: Date
   periodEnd: Date
 }
 
-export function GeneralOutflowModal({ open, onClose, onSaved, edit, periodStart, periodEnd }: Props) {
+export function GeneralOutflowModal({ open, onClose, onSaved, edit, availableCash, periodStart, periodEnd }: Props) {
   const { t, locale } = useLanguage()
   const [nameAr, setNameAr] = useState('')
   const [nameEn, setNameEn] = useState('')
@@ -84,9 +85,20 @@ export function GeneralOutflowModal({ open, onClose, onSaved, edit, periodStart,
       }
 
       if (status === 'paid') {
-        const available = edit
-          ? await computeAvailableCashExcludingOutflow(supabase, user.id, minD, maxD, edit.id)
-          : await computeAvailableCash(supabase, user.id, minD, maxD)
+        if (availableCash == null) {
+          setError(
+            t(
+              'جاري حساب السيولة المتاحة في المحفظة. يرجى المحاولة بعد قليل.',
+              'Calculating available liquidity in your wallet. Please try again shortly.'
+            )
+          )
+          return
+        }
+
+        // ملاحظة: عند تعديل مصروف مدفوع سابقاً، السيولة المرئية في الصفحة تكون ناقصة منه،
+        // لذلك نضيفه مؤقتاً لاختبار ما إذا كان المبلغ الجديد سيزيد الفارق.
+        let available = availableCash
+        if (edit && edit.status === 'paid') available += Number(edit.amount) || 0
         if (num > available + 0.0001) {
           setError(
             t(

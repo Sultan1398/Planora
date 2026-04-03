@@ -551,6 +551,7 @@ export default function OutflowPage() {
         }}
         onSaved={reloadAll}
         edit={editingOutflow}
+        availableCash={availableCash}
         periodStart={periodDates.start}
         periodEnd={periodDates.end}
       />
@@ -582,6 +583,7 @@ export default function OutflowPage() {
             ? sumLegacyMarkerPayments(obligationPaymentOutflows, payObligation.id)
             : 0
         }
+        availableCash={availableCash}
         periodStart={periodDates.start}
         periodEnd={periodDates.end}
       />
