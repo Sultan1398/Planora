@@ -253,82 +253,118 @@ export default function InflowPage() {
 
         {isSourcesOpen && (
           <div className="mt-2 border-t border-gray-100 p-2 sm:p-4">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
-                <Loader2 className="h-8 w-8 animate-spin text-brand" />
-                <p className="text-sm">{t('جاري التحميل…', 'Loading…')}</p>
-              </div>
-            ) : rows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl bg-gray-50 px-6 py-12 text-center">
-                <ListDashes weight="duotone" className="mb-4 h-16 w-16 text-gray-300" aria-hidden />
-                <p className="mb-5 font-medium text-gray-500">
-                  {t('لا توجد مصادر دخل لهذه الفترة', 'No income sources for this period')}
-                </p>
-                <button
-                  type="button"
-                  onClick={openAdd}
-                  className="rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-                >
-                  {t('+ إضافة أول مصدر دخل', '+ Add your first income source')}
-                </button>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-white">
-                {rows.map((row) => (
-                  <li
-                    key={row.id}
-                    className="flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-surface/30 sm:flex-row sm:items-center sm:justify-between"
+            <div className="rounded-2xl border border-border bg-white shadow-sm overflow-hidden">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted">
+                  <Loader2 className="h-8 w-8 animate-spin text-brand" />
+                  <p className="text-sm">{t('جاري التحميل…', 'Loading…')}</p>
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="px-6 py-14 text-center text-muted">
+                  <p className="mb-4">
+                    {t('لا توجد مصادر دخل مسجلة لهذه الفترة.', 'No income sources recorded for this period.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={openAdd}
+                    className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900">
-                        {locale === 'ar' ? row.name_ar : row.name_en}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                        <span
-                          className={cn(
-                            'rounded-md px-2 py-0.5 font-medium',
-                            row.type === 'fixed' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-800'
-                          )}
-                        >
-                          {row.type === 'fixed' ? t('ثابت', 'Fixed') : t('متغير', 'Variable')}
-                        </span>
-                        <span dir="ltr" className="tabular-nums">
-                          {formatGregorianDate(parseLocalISODate(row.date), locale)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 sm:shrink-0">
-                      <p className="text-lg font-bold text-success tabular-nums" dir="ltr">
-                        {formatMoney(Number(row.amount), locale)}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(row)}
-                          className="rounded-lg p-2 text-muted hover:bg-surface hover:text-brand transition-colors"
-                          aria-label={t('تعديل', 'Edit')}
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(row.id)}
-                          disabled={deletingId === row.id}
-                          className="rounded-lg p-2 text-muted hover:bg-red-50 hover:text-danger transition-colors disabled:opacity-50"
-                          aria-label={t('حذف', 'Delete')}
-                        >
-                          {deletingId === row.id ? (
-                            <Loader2 size={18} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={18} />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    {t('+ إضافة أول مصدر دخل', '+ Add your first income source')}
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 w-full overflow-x-auto border-t border-gray-100 pt-4">
+                  <table className="w-full min-w-[700px] border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50 text-xs font-semibold text-gray-500">
+                        <th scope="col" className="px-4 py-4 text-center">
+                          {t('نوع الدخل', 'Income Type')}
+                        </th>
+                        <th scope="col" className="px-4 py-4 text-start">
+                          {t('الاسم', 'Name')}
+                        </th>
+                        <th scope="col" className="px-4 py-4 text-center">
+                          {t('التاريخ', 'Date')}
+                        </th>
+                        <th scope="col" className="px-4 py-4 text-center">
+                          {t('المبلغ', 'Amount')}
+                        </th>
+                        <th scope="col" className="px-4 py-4 text-center">
+                          {t('الإجراءات', 'Actions')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => {
+                        const isFixed = row.type === 'fixed'
+                        const name =
+                          locale === 'ar' ? row.name_ar || row.name_en : row.name_en || row.name_ar
+                        return (
+                          <tr
+                            key={row.id}
+                            className="border-b border-gray-50 bg-white transition-colors hover:bg-gray-50/50"
+                          >
+                            <td className="whitespace-nowrap px-4 py-4 text-center">
+                              <span
+                                className={cn(
+                                  'inline-flex rounded-md px-2.5 py-1 text-xs font-bold',
+                                  isFixed ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+                                )}
+                              >
+                                {isFixed ? t('ثابت', 'Fixed') : t('متغير', 'Variable')}
+                              </span>
+                            </td>
+
+                            <td className="whitespace-nowrap px-4 py-4 text-start font-bold text-gray-900">
+                              {name || t('بدون اسم', 'Unnamed')}
+                            </td>
+
+                            <td className="whitespace-nowrap px-4 py-4 text-center text-gray-500" dir="ltr">
+                              {row.date ? formatGregorianDate(parseLocalISODate(row.date), locale) : '-'}
+                            </td>
+
+                            <td
+                              className="whitespace-nowrap px-4 py-4 text-center font-bold text-emerald-600"
+                              dir="ltr"
+                            >
+                              +{formatMoney(Number(row.amount), locale)}
+                            </td>
+
+                            <td className="whitespace-nowrap px-4 py-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(row)}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-blue-600 transition-colors hover:bg-blue-50"
+                                  title={t('تعديل', 'Edit')}
+                                  aria-label={t('تعديل', 'Edit')}
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(row.id)}
+                                  disabled={deletingId === row.id}
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+                                  title={t('حذف', 'Delete')}
+                                  aria-label={t('حذف', 'Delete')}
+                                >
+                                  {deletingId === row.id ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={16} />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
